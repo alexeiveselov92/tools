@@ -40,7 +40,7 @@ def get_fraction_ci(successes, n, conf_level = 0.95):
     else:
         print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99')
 # стат. тестирование методом бутстрепа для двух выборок с графиком и таблицей результатов
-def get_bootstrap(
+def bootstrap_test(
     data_column_1, # числовые значения первой выборки
     data_column_2, # числовые значения второй выборки
     n_samples = 1000, # количество бутстрэп-подвыборок
@@ -118,7 +118,7 @@ def get_bootstrap(
             "p_value": p_value,
             "results": results}
 # Т-тест
-def t_test_ind(x, y, alpha = 0.05, printing = True):
+def t_test(x, y, alpha = 0.05, printing = True):
     results = pd.DataFrame()
     pvalue = st.ttest_ind(x, y)[1]
     # saving_results
@@ -164,17 +164,8 @@ def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
     return results
-# фильтр Хэмпеля - удаление выбросов (заменяем им на np.nan)
-def filter_hampel(x):
-    x_copy = x.copy()    
-    difference = np.abs(x_copy.median()-x_copy)
-    median_abs_deviation = difference.median()
-    threshold = 3 * median_abs_deviation
-    outlier_idx = difference > threshold
-    x_copy[outlier_idx] = np.nan
-    return(x_copy)
 # ANOVA
-def get_anova_results(list_of_arrays, alpha = 0.05, printing=True):
+def anova_test(list_of_arrays, alpha = 0.05, printing=True):
     results = pd.DataFrame()
     stat_anova, p_anova = f_oneway(*list_of_arrays)
     results.loc[0, 'alpha'] = alpha 
@@ -187,3 +178,12 @@ def get_anova_results(list_of_arrays, alpha = 0.05, printing=True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
+# фильтр Хэмпеля - удаление выбросов (заменяем им на np.nan)
+def filter_hampel(x):
+    x_copy = x.copy()    
+    difference = np.abs(x_copy.median()-x_copy)
+    median_abs_deviation = difference.median()
+    threshold = 3 * median_abs_deviation
+    outlier_idx = difference > threshold
+    x_copy[outlier_idx] = np.nan
+    return(x_copy)
