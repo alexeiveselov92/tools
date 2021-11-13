@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import scipy.stats as st
 import math as mth
+from scipy.stats import f_oneway
 
 # Получаем границы доверительного интервала + выборку полученных средних (результат - словарь)
 def get_bootstrap_ci(data, n_samples, func = np.mean, alpha = 0.05):
@@ -158,12 +159,10 @@ def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
         print('p-значение: ', pvalue)
     if (pvalue < alpha):
         results.loc[0, 'the_null_hypothesis'] = 'reject'
-        if printing==True:
-            print("Отвергаем нулевую гипотезу: между долями есть значимая разница")
+        if printing==True: print("Отвергаем нулевую гипотезу: между долями есть значимая разница")
     else:
-        results.loc[0, 'the_null_hypothesis'] = 'no reject'
-        if printing==True:
-            print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
+        results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
+        if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
     return results
 # фильтр Хэмпеля - удаление выбросов (заменяем им на np.nan)
 def filter_hampel(x):
@@ -174,4 +173,16 @@ def filter_hampel(x):
     outlier_idx = difference > threshold
     x_copy[outlier_idx] = np.nan
     return(x_copy)
-
+# ANOVA
+def get_anova_results(list_of_arrays, alpha = 0.05, printing=True):
+    results = pd.DataFrame()
+    stat_anova, p_anova = f_oneway(*list_of_arrays)
+    results.loc[0, 'alpha'] = alpha 
+    results.loc[0, 'pvalue'] = p_anova
+    results.loc[0, 'stat'] = stat_anova
+    if (p_anova < alpha):
+        results.loc[0, 'the_null_hypothesis'] = 'reject'
+        if printing==True: print("Отвергаем нулевую гипотезу: между выборками есть значимая разница")
+    else:
+        results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
+        if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
