@@ -186,3 +186,4 @@ def get_anova_results(list_of_arrays, alpha = 0.05, printing=True):
     else:
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
+    return results
