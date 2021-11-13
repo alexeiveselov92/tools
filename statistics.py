@@ -51,7 +51,6 @@ def bootstrap_test(
     printing = True):
     '''
     statistic_func: 'mean', 'percentile'. If 'percentile', then percentile param default = 50
-    return dict {"boot_data": boot_data,"quants": quants,"p_value": p_value,"results": results}
     '''
     boot_len = max([len(data_column_1), len(data_column_2)])
     indices = np.random.randint(0, len(data_column_1), (n_samples, boot_len))
@@ -113,10 +112,7 @@ def bootstrap_test(
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True:
             print("Не получилось отвергнуть нулевую гипотезу")        
-    return {"boot_data": boot_data, 
-            "quants": quants, 
-            "p_value": p_value,
-            "results": results}
+    return results
 # Т-тест
 def t_test(x, y, alpha = 0.05, printing = True):
     results = pd.DataFrame()
@@ -178,7 +174,7 @@ def anova_test(list_of_arrays, alpha = 0.05, printing=True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
-# фильтр Хэмпеля - удаление выбросов (заменяем им на np.nan)
+# фильтр Хэмпеля - удаление выбросов (заменяем их на np.nan)
 def filter_hampel(x):
     x_copy = x.copy()    
     difference = np.abs(x_copy.median()-x_copy)
