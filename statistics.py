@@ -133,7 +133,7 @@ def t_test(x, y, alpha = 0.05, printing = True):
     return results
 # Z-тест (для долей)
 def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
-    results = pd.DataFrame()
+    results_df = pd.DataFrame()
     # пропорция успехов в первой группе:
     p1 = successes_1/n1
     # пропорция успехов во второй группе:
@@ -149,17 +149,17 @@ def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
     distr = st.norm(0, 1) 
     pvalue = (1 - distr.cdf(abs(z_value))) * 2
     # saving_results
-    results.loc[0, 'alpha'] = alpha 
-    results.loc[0, 'pvalue'] = pvalue
+    results_df.loc[0, 'alpha'] = alpha 
+    results_df.loc[0, 'pvalue'] = pvalue
     if printing==True:
         print('p-значение: ', pvalue)
     if (pvalue < alpha):
-        results.loc[0, 'the_null_hypothesis'] = 'reject'
+        results_df.loc[0, 'the_null_hypothesis'] = 'reject'
         if printing==True: print("Отвергаем нулевую гипотезу: между долями есть значимая разница")
     else:
-        results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
+        results_df.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
-    return results
+    return results_df
 # ANOVA
 def anova_test(list_of_arrays, alpha = 0.05, printing=True):
     results = pd.DataFrame()
@@ -174,6 +174,25 @@ def anova_test(list_of_arrays, alpha = 0.05, printing=True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
+# binominal test https://www.coursera.org/lecture/stats-for-data-analysis/binomial-nyi-kritierii-dlia-doli-JwmBw
+def binom_test(successes, n, p = 0.5, alternative = 'two-sided', alpha = 0.05, print_results = True):
+    '''
+    alternative: string - 'two-sided', 'greater', 'less'
+    '''
+    results_df = pd.DataFrame()
+    pvalue = st.binom_test(successes, n, p, alternative = alternative)
+    # saving_results
+    results_df.loc[0, 'alpha'] = alpha 
+    results_df.loc[0, 'pvalue'] = pvalue
+    if print_results == True:
+        print('p-значение: ', pvalue)
+    if (pvalue < alpha):
+        results_df.loc[0, 'the_null_hypothesis'] = 'reject'
+        if print_results == True: print("Отвергаем нулевую гипотезу")
+    else:
+        results_df.loc[0, 'the_null_hypothesis'] = 'fail to reject'
+        if print_results == True: print("Не получилось отвергнуть нулевую гипотезу") 
+    return results_df
 # фильтр Хэмпеля - удаление выбросов (заменяем их на np.nan)
 def filter_hampel(x):
     x_copy = x.copy()    
