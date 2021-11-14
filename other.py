@@ -4,6 +4,13 @@
 import datetime
 import requests
 import json
+import io
+from PIL import Image
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+from scipy import stats as st
+from scipy.optimize import curve_fit
 
 # datetime from text
 def datetime_from_text(text, pattern = '%Y-%m-%d %H:%M:%S'):
@@ -82,3 +89,32 @@ def post_file_to_slack(
         'title': title
       },
       files = { 'file': file_bytes }).json()
+# function for ltv forecasting
+def curve_f(x, a, b, c):
+    return a*np.log(x + 100*np.tanh(b)) + c
+# get fcst ltv coefficients
+def get_ltv_coefficients(df, x_column, target_column):
+    '''
+    x_column: string - column name of the independent variable, days as example
+    target_column: string - column name of the dependent variable, ltv or arppu cummulative
+    '''
+    curve_coefs,_ = curve_fit(curve_f, df[days_column], df[target_column], maxfev = 500000) 
+    return curve_coefs
+# get fcst plot
+def get_ltv_fcst_plot(df, x_column, target_column, x_range_tuple = None):
+    '''
+    x_column: string - column name of the independent variable, days as example
+    target_column: string - column name of the dependent variable, ltv or arppu cummulative
+    x_range_tuple: tuple, range for x values to display on the chart as a forecast - (0,365) as example
+    '''
+    df = df.sort_values(by = x_column, ascending = True)
+    coefs = get_ltv_coefficients(df, x_column, target_column)
+    df.apply(lambda x: curve_f(365,*coefs), axis = 1)
+    plt.plot(df[x_column], df[target_column], label = 'fact', color = '#2b6ca3')
+    if x_range_tuple != None:
+        x_fcst_values = [i for i in range(*x_range_tuple)]
+    else:
+        x_fcst_values = df[x_column].to_list()
+    plt.plot(x_fcst_values, pd.Series(map(lambda x: curve_f(x, *coefs), x_fcst_values)), label = 'fcst', color = 'green')
+    plt.legend()
+    plt.show()
