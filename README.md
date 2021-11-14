@@ -1,5 +1,5 @@
 # My tools
-## python modules
+## my python modules
 |module|link to code|description|
 |---|---|---|
 |[clickhouse](https://github.com/alexeiveselov92/tools/blob/main/docs/clickhouse.md)| https://github.com/alexeiveselov92/tools/blob/main/clickhouse.py | Clickhouse administration functions|
