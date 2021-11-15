@@ -193,6 +193,22 @@ def binom_test(successes, n, p = 0.5, alternative = 'two-sided', alpha = 0.05, p
         results_df.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if print_results == True: print("Не получилось отвергнуть нулевую гипотезу") 
     return results_df
+# Хи квадрат - критерий согласия Пирсона https://www.coursera.org/lecture/stats-for-data-analysis/kritierii-soghlasiia-pirsona-khi-kvadrat-Z1Noq
+def chisquare_test(observed_frequences, expected_frequences, ddof = 0, alpha = 0.05, print_results = True):
+    results_df = pd.DataFrame()
+    pvalue = st.chisquare(observed_frequences, expected_frequences, ddof = ddof).pvalue
+    # saving_results
+    results_df.loc[0, 'alpha'] = alpha 
+    results_df.loc[0, 'pvalue'] = pvalue
+    if print_results == True:
+        print('p-значение: ', pvalue)
+    if (pvalue < alpha):
+        results_df.loc[0, 'the_null_hypothesis'] = 'reject'
+        if print_results == True: print("Отвергаем нулевую гипотезу")
+    else:
+        results_df.loc[0, 'the_null_hypothesis'] = 'fail to reject'
+        if print_results == True: print("Не получилось отвергнуть нулевую гипотезу") 
+    return results_df
 # фильтр Хэмпеля - удаление выбросов (заменяем их на np.nan)
 def filter_hampel(x):
     x_copy = x.copy()    
