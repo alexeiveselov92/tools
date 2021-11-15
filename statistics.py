@@ -48,7 +48,7 @@ def bootstrap_test(
     percentile_value = 50,
     bootstrap_conf_level = 0.95, # уровень значимости
     chart = True,
-    printing = True):
+    print_results = True):
     '''
     statistic_func: 'mean', 'percentile'. If 'percentile', then percentile param default = 50
     '''
@@ -102,33 +102,54 @@ def bootstrap_test(
     alpha = 1 - bootstrap_conf_level 
     results.loc[0, 'alpha'] = alpha
     results.loc[0, 'pvalue'] = p_value
-    if printing==True:
+    if print_results==True:
         print('p-значение: ', p_value)
     if (p_value < alpha):
         results.loc[0, 'the_null_hypothesis'] = 'reject'
-        if printing==True:
+        if print_results==True:
             print("Отвергаем нулевую гипотезу: различия статистически значимы")
     else:
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
-        if printing==True:
+        if print_results==True:
             print("Не получилось отвергнуть нулевую гипотезу")        
     return results
 # Т-тест
-def t_test(x, y, alpha = 0.05, printing = True):
+def t_test(x, y, alpha = 0.05, print_results = True):
     results = pd.DataFrame()
     pvalue = st.ttest_ind(x, y)[1]
     # saving_results
     results.loc[0, 'alpha'] = alpha 
     results.loc[0, 'pvalue'] = pvalue
-    if printing==True:
+    if print_results==True:
         print('p-значение: ', pvalue)
     if (pvalue < alpha):
         results.loc[0, 'the_null_hypothesis'] = 'reject'
-        if printing==True:
+        if print_results==True:
             print("Отвергаем нулевую гипотезу: различия статистически значимы")
     else:
         results.loc[0, 'the_null_hypothesis'] = 'no reject'
-        if printing==True:
+        if print_results==True:
+            print("Не получилось отвергнуть нулевую гипотезу") 
+    return results
+# тест Манна - Уитни
+def mannwhitneyu_test(x, y, alpha = 0.05, alternative = 'two-sided', print_results = True):
+    '''
+    alternative: string - 'two-sided', 'less', 'greater'
+    '''
+    results = pd.DataFrame()
+    pvalue = st.mannwhitneyu(x, y)[1]
+    # saving_results
+    results.loc[0, 'alpha'] = alpha 
+    results.loc[0, 'pvalue'] = pvalue
+    if print_results==True:
+        print('p-значение: ', pvalue)
+    if (pvalue < alpha):
+        results.loc[0, 'the_null_hypothesis'] = 'reject'
+        if print_results==True:
+            print("Отвергаем нулевую гипотезу: различия статистически значимы")
+    else:
+        results.loc[0, 'the_null_hypothesis'] = 'no reject'
+        if print_results==True:
             print("Не получилось отвергнуть нулевую гипотезу") 
     return results
 # Z-тест (для долей)
@@ -161,18 +182,20 @@ def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
         if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
     return results_df
 # ANOVA
-def anova_test(list_of_arrays, alpha = 0.05, printing=True):
+def anova_test(list_of_arrays, alpha = 0.05, print_results = True):
     results = pd.DataFrame()
     stat_anova, p_anova = f_oneway(*list_of_arrays)
     results.loc[0, 'alpha'] = alpha 
     results.loc[0, 'pvalue'] = p_anova
     results.loc[0, 'stat'] = stat_anova
+    if print_results==True:
+        print('p-значение: ', p_anova)
     if (p_anova < alpha):
         results.loc[0, 'the_null_hypothesis'] = 'reject'
-        if printing==True: print("Отвергаем нулевую гипотезу: между выборками есть значимая разница")
+        if print_results==True: print("Отвергаем нулевую гипотезу: между выборками есть значимая разница")
     else:
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
-        if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
+        if print_results==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
 # binominal test https://www.coursera.org/lecture/stats-for-data-analysis/binomial-nyi-kritierii-dlia-doli-JwmBw
 def binom_test(successes, n, p = 0.5, alternative = 'two-sided', alpha = 0.05, print_results = True):
