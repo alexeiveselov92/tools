@@ -114,7 +114,10 @@ def bootstrap_test(
             print("Не получилось отвергнуть нулевую гипотезу")        
     return results
 # Т-тест
-def t_test(x, y, alpha = 0.05, print_results = True):
+def t_test(x, y, alpha = 0.05, alternative='two-sided', print_results = True):
+    '''
+    alternative: string - 'two-sided', 'less', 'greater'
+    '''
     results = pd.DataFrame()
     pvalue = st.ttest_ind(x, y)[1]
     # saving_results
