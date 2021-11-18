@@ -12,12 +12,17 @@ import numpy as np
 from scipy import stats as st
 from scipy.optimize import curve_fit
 
-# datetime from text
+# datetime or date from text
 def datetime_from_text(text, pattern = '%Y-%m-%d %H:%M:%S'):
     '''
     default pattern = '%Y-%m-%d %H:%M:%S'
     '''
     return datetime.datetime.strptime(text, pattern)
+def date_from_text(text, pattern = '%Y-%m-%d'):
+    '''
+    default pattern = '%Y-%m-%d'
+    '''
+    return datetime.datetime.strptime(text, pattern).date()
 # post messages to slack
 def post_message_to_slack(
         text, 
