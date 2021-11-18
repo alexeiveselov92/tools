@@ -123,3 +123,11 @@ def get_ltv_fcst_plot(df, x_column, target_column, x_range_tuple = None):
     plt.plot(x_fcst_values, pd.Series(map(lambda x: curve_f(x, *coefs), x_fcst_values)), label = 'fcst', color = 'green')
     plt.legend()
     plt.show()
+    results_df = pd.DataFrame()
+    a,b,c = coefs
+    results_df.loc[0, 'x_column'] = x_column 
+    results_df.loc[0, 'target_column'] = target_column 
+    results_df.loc[0, 'a'] = a
+    results_df.loc[0, 'b'] = b
+    results_df.loc[0, 'c'] = c
+    return results_df
