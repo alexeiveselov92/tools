@@ -45,6 +45,33 @@ class clickhouse_tools:
         native_connection_dict = self.__native_connection_dict
         client = Client(**native_connection_dict)
         return client.execute(q)
+    def create_table(self, columns_dict, table_name, engine, order_by, partition_by = None, print_results = False):
+        '''
+        q: select query for creating table
+        engine: 'ReplacingMergeTree()', 'MergeTree()', 'SummingMergeTree()', 'AggregatingMergeTree()' as example
+        partition_by: block PARTITION BY in DDL
+        order_by: block ORDER BY in DDL
+        '''
+        column_str_list = []
+        columns_str = ''
+        for key in columns_dict.keys():
+            value = columns_dict[key]
+            column_str = '''`{}` {}'''.format(key, value)
+            column_str_list.append(column_str)
+        columns_str = ',\n'.join(column_str_list)
+        
+        if partition_by == None:
+            partition_by_cond = ''
+        else:
+            partition_by_cond = f'''PARTITION BY {partition_by}'''
+        self.execute(f'''
+        CREATE TABLE IF NOT EXISTS {self.__database}.{table_name}
+        ({columns_str})
+        ENGINE = {engine}
+        {partition_by_cond}
+        ORDER BY ({order_by})
+        SETTINGS index_granularity = 8192 
+        ''')
     def create_table_by_select(self, q, table_name, engine, partition_by, order_by, print_results = False):
         '''
         q: select query for creating table
