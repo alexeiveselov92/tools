@@ -145,6 +145,33 @@ class clickhouse_tools:
                 return False, done  
         else: 
             return True, done
+    def get_table_info(self, table_name):
+        df = self.select(f'''
+        SELECT 
+            name,
+            engine,
+            partition_key,
+            create_table_query,
+            sorting_key,
+            primary_key,
+            sampling_key
+        FROM system.tables
+        WHERE name = '{table_name}'
+        ''')
+        return df
+    def get_all_tables(self):
+        df = self.select(f'''
+        SELECT 
+            name,
+            engine,
+            partition_key,
+            create_table_query,
+            sorting_key,
+            primary_key,
+            sampling_key
+        FROM system.tables
+        ''')
+        return df
     def how_many_bytes_in_table(self, table_name):
         df = self.select(f'''
         SELECT 

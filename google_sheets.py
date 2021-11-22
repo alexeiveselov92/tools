@@ -3,6 +3,7 @@
 
 import gspread
 import httplib2
+import pandas as pd
 from googleapiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 import matplotlib.colors as colors
