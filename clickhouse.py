@@ -172,6 +172,41 @@ class clickhouse_tools:
         FROM system.tables
         ''')
         return df
+    def get_database_metrics(self):
+        df = self.select('''
+        SELECT * FROM system.metrics
+        ''')
+        return df
+    def get_queries_log(self, last_period_str = '5 minutes', limit = None):
+        utc_now = datetime.datetime.utcnow() - datetime.timedelta(microseconds = datetime.datetime.utcnow().microsecond)
+        start_time = utc_now - pd.Timedelta(last_period_str)
+        if limit != None:
+            limit_str = f'''LIMIT {limit}'''
+        else:
+            limit_str = ''
+        df = self.select(f'''
+        SELECT 
+            toString(type) AS type,
+            event_date,
+            event_time,
+            query_start_time,
+            query_duration_ms,
+            read_rows,
+            read_bytes,
+            written_rows,
+            written_bytes,
+            result_rows,
+            result_bytes,
+            memory_usage,
+            query,
+            query_id,
+            exception,
+            user
+        FROM system.query_log
+        WHERE event_time >= toDateTime('{start_time}')
+        {limit_str}
+        ''')
+        return df
     def how_many_bytes_in_table(self, table_name):
         df = self.select(f'''
         SELECT 
