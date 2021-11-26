@@ -12,7 +12,7 @@ import re
 
 class clickhouse_tools:
     '''
-    Your query must contains in block "where" condition by time column with variables $from and $to. "WHERE event_time BETWEEN $from AND $to" as example.
+    This class gives you the opportunity to work with Clickhouse DB through ready-made methods of the class, as well as create etl jobs with reference to the time column.
     '''
     elt_jobs_table_name = 'elt_jobs'
     elt_jobs_progress_table_name = 'elt_progress'
@@ -296,6 +296,7 @@ class clickhouse_tools:
     # add-delete job
     def elt_add_job(self, q, table_name, since_date_str, engine, order_by, partition_by = None, min_writing_interval_cron_str = '0 0 * * *', delay_string = None):
         '''
+        Your query must contains in block "where" condition by time column with variables $from and $to. "WHERE event_time BETWEEN $from AND $to" as example.
         delay_string: value for pd.Timedelta object
         '''
         if '$from' not in q or '$to' not in q:
