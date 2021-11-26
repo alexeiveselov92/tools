@@ -45,6 +45,26 @@ class clickhouse_tools:
         native_connection_dict = self.__native_connection_dict
         client = Client(**native_connection_dict)
         return client.execute(q)
+    def create_table_by_select(self, q, table_name, engine, partition_by, order_by, print_results = False):
+        '''
+        q: select query for creating table
+        engine: 'ReplacingMergeTree()', 'MergeTree()', 'SummingMergeTree()', 'AggregatingMergeTree()' as example
+        partition_by: block PARTITION BY in DDL
+        order_by: block ORDER BY in DDL
+        '''
+        if partition_by == None:
+            partition_by_cond = ''
+        else:
+            partition_by_cond = f'''PARTITION BY {partition_by}'''
+        self.execute(f'''
+        CREATE TABLE IF NOT EXISTS {self.__database}.{table_name}
+        ENGINE = {engine}
+        {partition_by_cond}
+        ORDER BY ({order_by})
+        SETTINGS index_granularity = 8192 AS 
+        {q}
+        ''')
+        if print_results == True: print('Table {} have been successfully created!'.format(table_name))
     def create_table(self, columns_dict, table_name, engine, order_by, partition_by = None, print_results = False):
         '''
         q: select query for creating table
@@ -71,25 +91,6 @@ class clickhouse_tools:
         {partition_by_cond}
         ORDER BY ({order_by})
         SETTINGS index_granularity = 8192 
-        ''')
-    def create_table_by_select(self, q, table_name, engine, partition_by, order_by, print_results = False):
-        '''
-        q: select query for creating table
-        engine: 'ReplacingMergeTree()', 'MergeTree()', 'SummingMergeTree()', 'AggregatingMergeTree()' as example
-        partition_by: block PARTITION BY in DDL
-        order_by: block ORDER BY in DDL
-        '''
-        if partition_by == None:
-            partition_by_cond = ''
-        else:
-            partition_by_cond = f'''PARTITION BY {partition_by}'''
-        self.execute(f'''
-        CREATE TABLE IF NOT EXISTS {self.__database}.{table_name}
-        ENGINE = {engine}
-        {partition_by_cond}
-        ORDER BY ({order_by})
-        SETTINGS index_granularity = 8192 AS 
-        {q}
         ''')
         if print_results == True: print('Table {} have been successfully created!'.format(table_name))
     def insert_select_to_db(self, q, table_name, print_results = False):
@@ -269,6 +270,7 @@ class clickhouse_tools:
             self.execute(f'''
             CREATE TABLE IF NOT EXISTS {self.__database}.{clickhouse_tools.elt_jobs_progress_table_name}
             (
+            `created_at` DateTime DEFAULT now(),
             `start_time` DateTime,
             `finish_time` DateTime,
             `table_name` String,
@@ -345,7 +347,7 @@ class clickhouse_tools:
         self.elt_recreate_jobs_progress_table(password = self.__password)
         self.insert_df_to_db(df,clickhouse_tools.elt_jobs_progress_table_name)
         if print_results == True: print(f'Job with table {table_name} have been deleted!')
-    # get job/jobs or job process tables
+    # get job/jobs or job info
     def elt_get_all_jobs(self):
         df = self.select(f'''
         SELECT
