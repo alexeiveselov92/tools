@@ -20,17 +20,17 @@ gsh.sheet_rename(table_url, sheet_name, new_sheet_name)
 gsh.sheet_freeze_area(table_url, sheet_name, rows = 1, cols = None)
 
 # duplicate sheet
-sheet_duplicate(table_url, source_sheet_name, new_sheet_name)
+gsh.sheet_duplicate(table_url, source_sheet_name, new_sheet_name)
 
 # copy sheet to other spreadsheet
-sheet_copy_to_spreadsheet(source_table_url, sheet_name, new_table_url, new_sheet_name = None)
+gsh.sheet_copy_to_spreadsheet(source_table_url, sheet_name, new_table_url, new_sheet_name = None)
 
 # df to sheet with default format
-df_to_sheet(df, table_url, sheet_name, start_cell='A1', insert_column_names = True, formatted_default = True)
-df_to_sheet_append(df, table_url, sheet_name, insert_column_names = False, skip_rows = 0, formatted_default = True)
+gsh.df_to_sheet(df, table_url, sheet_name, start_cell='A1', insert_column_names = True, formatted_default = True)
+gsh.df_to_sheet_append(df, table_url, sheet_name, insert_column_names = False, skip_rows = 0, formatted_default = True)
 
 # sheet to df
-sheet_to_df(table_url, sheet_name)
+gsh.sheet_to_df(table_url, sheet_name)
 ```
 
 **All class methods you can see in [code](https://github.com/alexeiveselov92/tools/blob/main/google_sheets.py)**
