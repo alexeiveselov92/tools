@@ -48,9 +48,12 @@ def bootstrap_test(
     percentile_value = 50,
     bootstrap_conf_level = 0.95, # уровень значимости
     chart = True,
-    print_results = True):
+    print_results = True,
+    returns = 'results'):
     '''
     statistic_func: 'mean', 'percentile'. If 'percentile', then percentile param default = 50
+
+    returns: str - 'boot_data', 'quants', 'p_value', 'results'
     '''
     boot_len = max([len(data_column_1), len(data_column_2)])
     indices = np.random.randint(0, len(data_column_1), (n_samples, boot_len))
@@ -60,7 +63,7 @@ def bootstrap_test(
     
     if statistic_func=='mean':
         boot_data = list(map(lambda x: np.mean(x), samples_1-samples_2))    
-    elif statistic_func=='percentile':
+    else:
         boot_data = list(map(lambda x: np.percentile(x, q=percentile_value), samples_1-samples_2))    
 
     pd_boot_data = pd.DataFrame(boot_data)   
@@ -112,7 +115,10 @@ def bootstrap_test(
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if print_results==True:
             print("Не получилось отвергнуть нулевую гипотезу")        
-    return results
+    return {"boot_data": boot_data, 
+            "quants": quants, 
+            "p_value": p_value,
+            "results": results}[returns]
 # Т-тест
 def t_test(x, y, alpha = 0.05, alternative='two-sided', print_results = True):
     '''

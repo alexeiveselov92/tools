@@ -131,3 +131,16 @@ def get_ltv_fcst_plot(df, x_column, target_column, x_range_tuple = None):
     results_df.loc[0, 'b'] = b
     results_df.loc[0, 'c'] = c
     return results_df
+# convert_bytes
+def convert_bytes(bytes_number):
+    tags = [ "Byte", "Kilobyte", "Megabyte", "Gigabyte", "Terabyte" ]
+ 
+    i = 0
+    double_bytes = bytes_number
+ 
+    while (i < len(tags) and  bytes_number >= 1024):
+            double_bytes = bytes_number / 1024.0
+            i = i + 1
+            bytes_number = bytes_number / 1024
+ 
+    return str(round(double_bytes, 2)) + " " + tags[i]

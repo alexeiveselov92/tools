@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
+# pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
 import gspread
 import httplib2
 import pandas as pd
