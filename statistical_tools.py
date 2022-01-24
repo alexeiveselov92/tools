@@ -251,13 +251,13 @@ def filter_hampel(x):
     x_copy[outlier_idx] = np.nan
     return(x_copy)
 # расчет размера выборки для провычисления пропорций категориальных данных (дискретный случай)
-def get_sample_size_fraction(expected_proportion, min_detectable_effect, conf_level = 0.95, print_results = True):
+def get_sample_size_proportion(expected_proportion, min_detectable_effect, conf_level = 0.95, print_results = True):
     '''
     conf_level - 3 variants - 0.9,0.95,0.99
     '''
     conf_level_dict = {0.9:1.65,0.95:1.96,0.99:2.58}
     if conf_level in conf_level_dict.keys():
-        min_sample_size = (expected_proportion * (1 - expected_proportion) * conf_level_dict[conf_level]**2) / min_detectable_effect**2
+        min_sample_size = int((expected_proportion * (1 - expected_proportion) * conf_level_dict[conf_level]**2) / min_detectable_effect**2)
         if print_results == True: print(f'Минимальный размер выборки составляет {min_sample_size}.')
         return min_sample_size
     else:
@@ -270,8 +270,8 @@ def get_sample_size_mean_value(std_dev, min_detectable_effect, conf_level = 0.95
     '''
     conf_level_dict = {0.9:1.65,0.95:1.96,0.99:2.58}
     if conf_level in conf_level_dict.keys():
-        min_sample_size = (std_dev**2 * conf_level_dict[conf_level]**2) / min_detectable_effect**2
+        min_sample_size = int((std_dev**2 * conf_level_dict[conf_level]**2) / min_detectable_effect**2)
         if print_results == True: print(f'Минимальный размер выборки составляет {min_sample_size}.')
         return min_sample_size
     else:
-        print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99')
+        print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99')  
