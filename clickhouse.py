@@ -31,13 +31,20 @@ class clickhouse_tools:
         self.__pandahouse_connection_dict = {'host': f'http://{user}:{password}@{host}:{port}', 'database': database}
         self.__native_connection_dict = {'host':host, 'user':user, 'password':password, 'port':native_port}
     ###### common functions
+    # def select(self,q):
+    #     '''
+    #     this function will unload the data of your select query to a dataframe
+    #     '''
+    #     connection = self.__pandahouse_connection_dict
+    #     request = ph.read_clickhouse(query=q, connection=connection)
+    #     return request  
     def select(self,q):
         '''
         this function will unload the data of your select query to a dataframe
         '''
-        connection = self.__pandahouse_connection_dict
-        request = ph.read_clickhouse(query=q, connection=connection)
-        return request   
+        native_connection_dict = self.__native_connection_dict
+        client = Client(**native_connection_dict)
+        return client.query_dataframe(q) 
     def execute(self, q):
         '''
         this function will execute your query, but if your query is a select expression, you will get the result of the expression as a list of tuples
