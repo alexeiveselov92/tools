@@ -162,7 +162,7 @@ def mannwhitneyu_test(x, y, alpha = 0.05, alternative = 'two-sided', print_resul
             print("Не получилось отвергнуть нулевую гипотезу") 
     return results
 # Z-тест (для долей)
-def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
+def z_test(successes_1, successes_2, n1, n2, alpha = .05, print_results = True):
     results_df = pd.DataFrame()
     # пропорция успехов в первой группе:
     p1 = successes_1/n1
@@ -181,14 +181,14 @@ def z_test(successes_1, successes_2, n1, n2, alpha = .05, printing=True):
     # saving_results
     results_df.loc[0, 'alpha'] = alpha 
     results_df.loc[0, 'pvalue'] = pvalue
-    if printing==True:
+    if print_results==True:
         print('p-значение: ', pvalue)
     if (pvalue < alpha):
         results_df.loc[0, 'the_null_hypothesis'] = 'reject'
-        if printing==True: print("Отвергаем нулевую гипотезу: между долями есть значимая разница")
+        if print_results==True: print("Отвергаем нулевую гипотезу: между долями есть значимая разница")
     else:
         results_df.loc[0, 'the_null_hypothesis'] = 'fail to reject'
-        if printing==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
+        if print_results==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать доли разными") 
     return results_df
 # ANOVA
 def anova_test(list_of_arrays, alpha = 0.05, print_results = True):
@@ -206,7 +206,7 @@ def anova_test(list_of_arrays, alpha = 0.05, print_results = True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if print_results==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
-# binominal test https://www.coursera.org/lecture/stats-for-data-analysis/binomial-nyi-kritierii-dlia-doli-JwmBw
+# binominal test   
 def binom_test(successes, n, p = 0.5, alternative = 'two-sided', alpha = 0.05, print_results = True):
     '''
     alternative: string - 'two-sided', 'greater', 'less'
@@ -274,4 +274,20 @@ def get_sample_size_mean_value(std_dev, min_detectable_effect, conf_level = 0.95
         if print_results == True: print(f'Минимальный размер выборки составляет {min_sample_size}.')
         return min_sample_size
     else:
-        print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99')  
+        print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99') 
+# расчет размера выборки для вычисления среднего значения (непрервый случай) - версия два 
+def get_sample_size_mean_value_2(values, min_detectable_effect_pct = 10, power = 0.8, alpha = 0.05):
+    from statsmodels.stats.power import TTestIndPower
+    std = np.std(values)
+    mean = np.mean(values)
+    effect = mean * (min_detectable_effect_pct / 100) / std
+    analysis = TTestIndPower()
+    size = int(analysis.solve_power(effect, power = power, alpha = alpha))
+    results = pd.DataFrame()
+    results.loc[0, 'alpha'] = alpha
+    results.loc[0, 'power'] = power
+    results.loc[0, 'std'] = std
+    results.loc[0, 'mean'] = mean
+    results.loc[0, 'min_detectable_effect_pct'] = min_detectable_effect_pct
+    results.loc[0, 'min_size'] = size
+    return results
