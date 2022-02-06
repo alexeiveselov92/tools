@@ -56,6 +56,13 @@ def bootstrap_test(
     returns = 'results'):
     '''
     statistic_func: 'mean', 'percentile'. If 'percentile', then percentile param default = 50
+    for using percentile func watch video with shifting estimates: https://www.youtube.com/watch?v=p_5YzShN4sg
+    Смещение выборки для решения проблемы высокого bias (для медианы, квантиля и т.д.):
+    1. объединяем обе выборки и считаем в них параметр (среднее, медиану, дисперсию, кванитиль и т.д.) и записываем
+    2. считаем дельту между двумя параметрами и записываем 
+    3. сдвигаем для выборок статистику таким образом, чтобы параметр был такой же, как и у объединенной группы 
+    4. бутстрепим в обеих выборках и считаем разницу 
+    5. считаем случаи, когда разница бутстреп-статистик была равна или больше ранее записанной дельты. это и будет p-value
 
     returns: str - 'boot_data', 'quants', 'p_value', 'results'
     '''
