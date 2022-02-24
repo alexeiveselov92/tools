@@ -4,6 +4,7 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 import scipy.stats as st
 import math as mth
 from scipy.stats import f_oneway
@@ -111,8 +112,8 @@ def bootstrap_test(
         boot_data = list(map(lambda x: np.percentile(x, q=percentile_value), samples_1-samples_2))
         boot_mean_data_1 = list(map(lambda x: np.percentile(x, q=percentile_value), samples_1))
         boot_mean_data_2 = list(map(lambda x: np.percentile(x, q=percentile_value), samples_2))
-        bootstrapped_value_1 = np.mean(boot_mean_data_1, q = percentile_value)  
-        bootstrapped_value_2 = np.mean(boot_mean_data_2, q = percentile_value)  
+        bootstrapped_value_1 = np.mean(boot_mean_data_1)  
+        bootstrapped_value_2 = np.mean(boot_mean_data_2)  
     pd_boot_data = pd.DataFrame(boot_data)   
     left_quant = (1 - bootstrap_conf_level)/2
     right_quant = 1 - (1 - bootstrap_conf_level) / 2
@@ -263,6 +264,9 @@ def anova_test(list_of_arrays, alpha = 0.05, print_results = True):
         results.loc[0, 'the_null_hypothesis'] = 'fail to reject'
         if print_results==True: print("Не получилось отвергнуть нулевую гипотезу, нет оснований считать выборки разными") 
     return results
+# tukey hsd test https://www.statology.org/tukey-test-python/ - надо сделать функцию
+# применяем после ANOVA чтобы провести попарное сравнение и найти отличающиеся пары
+
 # binominal test   
 def binom_test(successes, n, p = 0.5, alternative = 'two-sided', alpha = 0.05, print_results = True):
     '''
@@ -347,4 +351,188 @@ def get_sample_size_mean_value_2(values, min_detectable_effect_pct = 10, power =
     results.loc[0, 'mean'] = mean
     results.loc[0, 'min_detectable_effect_pct'] = min_detectable_effect_pct
     results.loc[0, 'min_size'] = size
+    return results
+
+# criterion functions
+def absolute_ttest(control, test, alpha = 0.05):
+    import scipy.stats as sps
+    from collections import namedtuple
+    ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', 
+                                        ['pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+    mean_control = np.mean(control)
+    mean_test = np.mean(test)
+    var_mean_control  = np.var(control) / len(control)
+    var_mean_test  = np.var(test) / len(test)
+    
+    difference_mean = mean_test - mean_control
+    difference_mean_var = var_mean_control + var_mean_test
+    difference_distribution = sps.norm(loc=difference_mean, scale=np.sqrt(difference_mean_var))
+
+    left_bound, right_bound = difference_distribution.ppf([alpha/2, 1 - alpha/2])
+    ci_length = (right_bound - left_bound)
+    pvalue = 2 * min(difference_distribution.cdf(0), difference_distribution.sf(0))
+    effect = difference_mean
+    return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+def relative_ttest(control, test, alpha = 0.05):
+    import scipy.stats as sps
+    from collections import namedtuple
+    ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', 
+                                        ['pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+    mean_control = np.mean(control)
+    var_mean_control  = np.var(control) / len(control)
+
+    difference_mean = np.mean(test) - mean_control
+    difference_mean_var  = np.var(test) / len(test) + var_mean_control
+    
+    covariance = -var_mean_control
+
+    relative_mu = difference_mean / mean_control
+    relative_var = difference_mean_var / (mean_control ** 2) \
+                    + var_mean_control * ((difference_mean ** 2) / (mean_control ** 4))\
+                    - 2 * (difference_mean / (mean_control ** 3)) * covariance
+    relative_distribution = sps.norm(loc=relative_mu, scale=np.sqrt(relative_var))
+    left_bound, right_bound = relative_distribution.ppf([alpha/2, 1 - alpha/2])
+    
+    ci_length = (right_bound - left_bound)
+    pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
+    effect = relative_mu
+    return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+def relative_bootstrap(control, test, alpha = 0.05, n_samples = 1000):
+    import scipy.stats as sps
+    from collections import namedtuple
+    ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', 
+                                        ['pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+    boot_len = max([len(control), len(test)])
+    indices = np.random.randint(0, len(control), (n_samples, boot_len))
+    if type(control) == np.ndarray: control_samples = control[indices]
+    if type(control) == pd.core.series.Series: control_samples = control.values[indices]
+    indices = np.random.randint(0, len(test), (n_samples, boot_len))
+    if type(control) == np.ndarray: test_samples = test[indices]
+    if type(control) == pd.core.series.Series: test_samples = test.values[indices]
+    
+    control_data = list(map(lambda x: np.mean(x), control_samples))
+    test_data = list(map(lambda x: np.mean(x), test_samples))
+    boot_data = (np.array(test_data) - np.array(control_data)) / np.array(control_data)
+  
+    left_quant = alpha/2
+    right_quant = 1 - alpha/2
+    left_bound, right_bound = np.quantile(boot_data, [left_quant, right_quant])
+    ci_length = (right_bound - left_bound)
+    effect = np.mean(test) - np.mean(control)
+    relative_distribution = sps.norm(loc=np.mean(boot_data), scale=np.std(boot_data))
+    pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
+    
+    return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+# checking functions
+def checking_criterion(data, values_column, one_group_size = None, difference_pct = 0, alpha = 0.05, criterion = 'ttest', bootstrap_n_samples = 1000, stratified = False, categories_column = None, N = 20000, print_results = True):
+    '''
+    one_group_size: if our value is float, then we will take a fraction of our data, and if our value is int, then we will take this sample size
+    difference_pct: if 0, then AA, else AB
+    criterion: 'ttest' or 'bootstrap'. but if you choose bootstrap, then determine the number of bootstrap subsamples - bootstrap_n_samples
+    '''
+    
+    # import
+    from tqdm.notebook import tqdm as tqdm_notebook
+    from collections import namedtuple
+    from statsmodels.stats.proportion import proportion_confint
+        
+    # variables
+    if one_group_size == None: one_group_size = 0.5    
+    results = pd.DataFrame()
+    
+    # preparing for stratification
+    if stratified == True:
+        max_values_in_categories = data[categories_column].value_counts().rename('count').reset_index().rename(columns = {'index':'category'}).groupby('category')['count'].max().reset_index()
+        max_values_in_categories['weight'] = max_values_in_categories['count'] / max_values_in_categories['count'].sum()
+        categories = data[categories_column].unique()
+        categories_sizes = {row['category']:row['count'] for _, row in max_values_in_categories.iterrows()}
+        categories_dataframes = {row['category']:data.query(f'''{categories_column}=="{row['category']}"''') for _, row in max_values_in_categories.iterrows()}
+        if type(one_group_size) == float:
+            categories_samples_sizes = {row['category']:int(row['count'] * one_group_size) for _, row in max_values_in_categories.iterrows()}
+        elif type(one_group_size) == int:
+            categories_samples_sizes = {row['category']:int(row['weight'] * one_group_size) for _, row in max_values_in_categories.iterrows()}
+        else:
+            print('one_group_size variable must be an float or int value!')
+            return None
+        
+    # create out counters 
+    count_dif = 0
+    count_level = 0
+    
+    # start N iterations
+    for i in tqdm_notebook(range(N)):
+        # get control and test samples
+        if stratified == True:
+            control = np.array([])
+            test = np.array([])
+            for category in categories: 
+                category_size = categories_sizes[category]
+                category_sample_size = categories_samples_sizes[category]
+
+                indices = np.random.randint(0, category_size, category_sample_size)
+                control = np.concatenate([control, categories_dataframes[category][values_column].values[indices]], axis = 0)
+                indices = np.random.randint(0, category_size, category_sample_size)
+                test = np.concatenate([test, categories_dataframes[category][values_column].values[indices] * (1 + (difference_pct / 100))], axis = 0)
+        else:
+            if type(one_group_size) == float:
+                boot_len = int(len(data) * one_group_size)
+            elif type(one_group_size) == int:
+                boot_len = one_group_size
+            indices = np.random.randint(0, len(data), boot_len)
+            control = data[values_column].values[indices]
+            indices = np.random.randint(0, len(data), boot_len)
+            test = data[values_column].values[indices] * (1 + (difference_pct / 100))
+        
+        # using criterion and counting cases detected difference
+        if criterion == 'ttest':
+            _, _, _, left_bound, right_bound = relative_ttest(control, test, alpha)
+        if criterion == 'bootstrap':
+            _, _, _, left_bound, right_bound = relative_bootstrap(control, test, alpha, n_samples = bootstrap_n_samples)
+        if left_bound > 0 or right_bound < 0:
+            count_dif += 1
+        if left_bound > difference_pct / 100 or right_bound < difference_pct / 100:
+            count_level += 1
+    
+    # create results
+    left_real_level, right_real_level = proportion_confint(count = count_level, nobs = N, alpha=0.05, method='wilson')
+    results.loc[0, 'criterion'] = criterion
+    if difference_pct == 0:
+        results.loc[0, 'type'] = 'AA'
+    else:
+        results.loc[0, 'type'] = 'AB'
+    if type(one_group_size) == float:
+        results.loc[0, 'one_group_size'] = one_group_size * len(data)
+    elif type(one_group_size) == int:
+        results.loc[0, 'one_group_size'] = one_group_size
+    results.loc[0, 'difference_pct'] = difference_pct
+    results.loc[0, 'alpha'] = alpha
+    results.loc[0, 'stratified'] = stratified
+    results.loc[0, 'iterations'] = N
+    results.loc[0, 'dif_detected/power'] = round(count_dif / N, 4)
+    results.loc[0, 'real_level'] = round(count_level / N, 4)
+    results.loc[0, 'left_real_level'] = left_real_level
+    results.loc[0, 'right_real_level'] = right_real_level
+    if print_results == True: 
+        print('difference_pct in ci (level): {:.2%}('.format(round(count_level / N, 4)) + "[{:.2%}, {:.2%}]); ".format(round(left_real_level, 4),round(right_real_level, 4)) + 'dif_detected/power: {:.2%};'.format(round(count_dif / N, 4)))
+    return results  
+def checking_criterion_iterable(data, values_column, one_group_size = None, difference_pct = 0, alpha = 0.05, criterion = 'ttest', bootstrap_n_samples = 1000, stratified = False, categories_column = None, N = 20000, print_results = True):
+    vars_dict = {
+        'one_group_size':one_group_size,
+        'difference_pct':difference_pct,
+        'alpha':alpha,
+        'criterion':criterion,
+        'bootstrap_n_samples':bootstrap_n_samples,
+        'stratified':stratified,
+        'categories_column':categories_column,
+        'N':N
+    }
+    iterable_vars_dict = {name:vars_dict[name] for name in vars_dict if type(vars_dict[name])==list}
+    if np.mean([len(iterable_vars_dict[name]) for name in iterable_vars_dict]) != [len(iterable_vars_dict[name]) for name in iterable_vars_dict][0]:
+        print('Error! vars lists must be the same length!')
+        return None
+    results = pd.DataFrame()
+    for _, row in pd.DataFrame(vars_dict).iterrows():
+        print('\n')
+        print(row.to_dict())
+        results = pd.concat([results, checking_criterion(data, values_column, **row.to_dict(), print_results = print_results)])
     return results
