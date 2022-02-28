@@ -40,6 +40,86 @@ def get_fraction_ci(successes, n, conf_level = 0.95):
         return ci_value, ci
     else:
         print('Please, choose one of 3 values of conf_level: 0.9, 0.95 or 0.99')
+# bootstrap от авито
+def bootstrap_avito(control, test, test_type='absolute'):
+    # Функция от средних, которую надо посчитать на каждой выборке.
+    absolute_func = lambda C, T: T - C
+    relative_func = lambda C, T: T / C - 1
+    
+    boot_func = absolute_func if test_type == 'absolute' else relative_func
+    stat_sample = []
+    
+    batch_sz = 100
+    
+    # В теории boot_samples_size стоить брать не меньше размера выборки. Но на практике можно и меньше.
+    boot_samples_size = len(control)
+    for i in range(0, boot_samples_size, batch_sz):
+        N_c = len(control)
+        N_t = len(test)
+        # Выбираем N_c элементов с повторением из текущей выборки. 
+        # И чтобы ускорить этот процесс, делаем это сразу batch_sz раз
+        # Вместо одной выборки мы получим batch_sz выборок
+        control_sample = np.random.choice(control, size=(len(control), batch_sz), replace=True)
+        test_sample    = np.random.choice(test, size=(len(test), batch_sz), replace=True)
+
+        C = np.mean(control_sample, axis=0)
+        T = np.mean(test_sample, axis=0)
+        assert len(T) == batch_sz
+        
+        # Добавляем в массив посчитанных ранее статистик batch_sz новых значений
+        # X в статье – это boot_func(control_sample_mean, test_sample_mean)
+        stat_sample += list(boot_func(C, T))
+
+    stat_sample = np.array(stat_sample)
+    # Считаем истинный эффект
+    effect = boot_func(np.mean(control), np.mean(test))
+    left_bound, right_bound = np.quantile(stat_sample, [0.025, 0.975])
+    
+    ci_length = (right_bound - left_bound)
+    # P-value - процент статистик, которые лежат левее или правее 0.
+    pvalue = 2 * min(np.mean(stat_sample > 0), np.mean(stat_sample < 0))
+    return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+# post normed bootstrap avito
+def post_normed_bootstrap_avito(control, test, control_before, test_before, test_type='absolute'):
+    # Функция от средних, которую надо посчитать на каждой выборке.
+    absolute_func = lambda C, T, C_b, T_b: T - (T_b / C_b) * C
+    relative_func = lambda C, T, C_b, T_b: (T / C) / (T_b / C_b) - 1
+    
+    boot_func = absolute_func if test_type == 'absolute' else relative_func
+    stat_sample = []
+    
+    batch_sz = 100
+    
+    #В теории boot_samples_size стоить брать не меньше размера выборки. Но на практике можно и меньше.
+    boot_samples_size = len(control)
+    for i in range(0, boot_samples_size, batch_sz):
+        N_c = len(control)
+        N_t = len(test)
+        # Надо помнить, что мы семплируем именно юзеров
+        # Поэтому, если мы взяли n раз i элемент в выборке control
+        # То надо столько же раз взять i элемент в выборке control_before
+        # Поэтому будем семплировать индексы
+        control_indices = np.arange(N_c)
+        test_indices = np.arange(N_t)
+        control_indices_sample = np.random.choice(control_indices, size=(len(control), batch_sz), replace=True)
+        test_indices_sample    = np.random.choice(test_indices, size=(len(test), batch_sz), replace=True)
+
+        C   = np.mean(control[control_indices_sample], axis=0)
+        T   = np.mean(test[test_indices_sample], axis=0)
+        C_b = np.mean(control_before[control_indices_sample], axis=0)
+        T_b = np.mean(test_before[test_indices_sample], axis=0)
+        assert len(T) == batch_sz
+        stat_sample += list(boot_func(C, T, C_b, T_b))
+
+    stat_sample = np.array(stat_sample)
+    # считаем истинный эффект
+    effect = boot_func(np.mean(control), np.mean(test), np.mean(control_before), np.mean(test_before))
+    left_bound, right_bound = np.quantile(stat_sample, [0.025, 0.975])
+    
+    ci_length = (right_bound - left_bound)
+    # P-value - процент статистик, которые лежат левее или правее 0.
+    pvalue = 2 * min(np.mean(stat_sample > 0), np.mean(stat_sample < 0))
+    return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
 # стат. тестирование методом бутстрепа для двух выборок с графиком и таблицей результатов
 def bootstrap_test(
     values_1, # числовые значения первой выборки
