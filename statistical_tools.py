@@ -162,6 +162,8 @@ def bootstrap_test(
     results.loc[0, 'alpha'] = alpha
     results.loc[0, 'bootstrapped_value_1'] = bootstrapped_value_1
     results.loc[0, 'bootstrapped_value_2'] = bootstrapped_value_2
+    results.loc[0, 'dif_left_bound'] = np.quantile(boot_data, alpha/2)
+    results.loc[0, 'dif_right_bound'] = np.quantile(boot_data, 1-alpha/2)
     results.loc[0, 'pvalue'] = p_value
     if print_results==True:
         print('p-значение: ', p_value)
@@ -352,7 +354,6 @@ def get_sample_size_mean_value_2(values, min_detectable_effect_pct = 10, power =
     results.loc[0, 'min_detectable_effect_pct'] = min_detectable_effect_pct
     results.loc[0, 'min_size'] = size
     return results
-
 # criterion functions
 def absolute_ttest(control, test, alpha = 0.05):
     import scipy.stats as sps
@@ -397,6 +398,7 @@ def relative_ttest(control, test, alpha = 0.05):
     pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
     effect = relative_mu
     return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+# relative bootstrap
 def relative_bootstrap(control, test, alpha = 0.05, n_samples = 1000):
     import scipy.stats as sps
     from collections import namedtuple
@@ -423,6 +425,14 @@ def relative_bootstrap(control, test, alpha = 0.05, n_samples = 1000):
     pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
     
     return ExperimentComparisonResults(pvalue, effect, ci_length, left_bound, right_bound)
+# get cuped samples
+def cuped_samples(control, test, control_before, test_before):
+    theta = (np.cov(control, control_before)[0, 1] + np.cov(test, test_before)[0, 1]) /\
+                (np.var(control_before) + np.var(test_before))
+
+    control_cup = control - theta * control_before
+    test_cup = test - theta * test_before
+    return control_cup, test_cup
 # checking functions
 def checking_criterion(data, values_column, one_group_size = None, difference_pct = 0, alpha = 0.05, criterion = 'ttest', bootstrap_n_samples = 1000, stratified = False, categories_column = None, N = 20000, print_results = True):
     '''
