@@ -626,3 +626,328 @@ def checking_criterion_iterable(data, values_column, one_group_size = None, diff
         print(row.to_dict())
         results = pd.concat([results, checking_criterion(data, values_column, **row.to_dict(), print_results = print_results)])
     return results
+
+class my_stat_functions: 
+    def __get_stratified_samples(control, test, control_categories, test_categories, n_samples = 1000):
+        data = pd.DataFrame()
+        for group in ['control', 'test']:
+            if group == 'control': df = pd.DataFrame({'values':control, 'categories':control_categories})
+            if group == 'test': df = pd.DataFrame({'values':test, 'categories':test_categories})
+            df['group'] = group
+            data = pd.concat([data, df])
+
+        max_values_in_categories = pd.concat([
+            pd.Series(control_categories).value_counts().rename('count'),
+            pd.Series(test_categories).value_counts().rename('count')
+        ]).reset_index().rename(columns = {'index':'category'}).groupby('category')['count'].max().reset_index()
+
+        for index, row in max_values_in_categories.iterrows():
+            boot_len = row['count']
+            category = row['category']
+            control_category_values = data.query('group=="control" and categories==@category')['values']
+            test_category_values = data.query('group=="test" and categories==@category')['values']
+
+            indices = np.random.randint(0, len(control_category_values), (n_samples, boot_len))
+            if index == 0: control_samples = control_category_values.values[indices]
+            if index != 0: control_samples = np.concatenate([control_samples, control_category_values.values[indices]], axis = 1)
+
+            indices = np.random.randint(0, len(test_category_values), (n_samples, boot_len))
+            if index == 0: test_samples = test_category_values.values[indices]
+            if index != 0: test_samples = np.concatenate([test_samples, test_category_values.values[indices]], axis = 1)
+
+        return control_samples, test_samples
+    def z_test(successes_1, successes_2, n1, n2, alpha = 0.05):
+        from collections import namedtuple
+        import scipy.stats as sps
+        ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', ['alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+        # пропорция успехов в первой группе:
+        p1 = successes_1/n1
+        # пропорция успехов во второй группе:
+        p2 = successes_2/n2
+        # пропорция успехов в комбинированном датасете:
+        p_combined = (successes_1 + successes_2) / (n1 + n2)
+        # разница пропорций в датасетах
+        difference = effect = p1 - p2 
+
+        # считаем статистику в ст.отклонениях стандартного нормального распределения
+        z_value = difference / mth.sqrt(p_combined * (1 - p_combined) * (1/n1 + 1/n2))
+        # задаем стандартное нормальное распределение (среднее 0, ст.отклонение 1)
+        distr = sps.norm(0, 1) 
+        pvalue = (1 - distr.cdf(abs(z_value))) * 2
+        # найдем доверительный интервал разницы
+        se_1 = np.sqrt (p1 * (1 - p1) / n1)
+        se_2 = np.sqrt (p2 * (1 - p2) / n2)
+        se_diff = np.sqrt(se_1**2 + se_2**2)
+        left_bound, right_bound = difference - sps.norm(0,1).ppf(1-alpha/2) * se_diff, difference + sps.norm(0,1).ppf(1-alpha/2) * se_diff
+        ci_length = (right_bound - left_bound)
+        
+        return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+    def t_test(control, test, alpha = 0.05, test_type = 'absolute'):
+        '''
+        test_type: 'absolute', 'relative'
+        '''
+        from collections import namedtuple
+        import scipy.stats as sps
+        ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', ['alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+        
+        mean_control = np.mean(control)
+        mean_test = np.mean(test)
+        var_mean_control  = np.var(control) / len(control)
+        var_mean_test  = np.var(test) / len(test)
+        
+        difference_mean = mean_test - mean_control
+        difference_mean_var = var_mean_control + var_mean_test
+        
+        if test_type == 'absolute':
+            difference_distribution = sps.norm(loc=difference_mean, scale=np.sqrt(difference_mean_var))
+            left_bound, right_bound = difference_distribution.ppf([alpha/2, 1 - alpha/2])
+            ci_length = (right_bound - left_bound)
+            pvalue = 2 * min(difference_distribution.cdf(0), difference_distribution.sf(0))
+            effect = difference_mean
+        if test_type == 'relative':
+            covariance = -var_mean_control
+            relative_mu = difference_mean / mean_control
+            relative_var = difference_mean_var / (mean_control ** 2) \
+                            + var_mean_control * ((difference_mean ** 2) / (mean_control ** 4))\
+                            - 2 * (difference_mean / (mean_control ** 3)) * covariance
+            relative_distribution = sps.norm(loc=relative_mu, scale=np.sqrt(relative_var))
+            left_bound, right_bound = relative_distribution.ppf([alpha/2, 1 - alpha/2])
+
+            ci_length = (right_bound - left_bound)
+            pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
+            effect = relative_mu
+            
+        return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+    def t_test_cuped(control, test, control_before, test_before, alpha = 0.05, test_type='absolute'):
+        from collections import namedtuple
+        import scipy.stats as sps
+        ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', ['alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+        
+        theta = (np.cov(np.array(control), np.array(control_before))[0, 1] + np.cov(np.array(test), np.array(test_before))[0, 1]) /\
+                            (np.var(np.array(control_before)) + np.var(np.array(test_before)))
+        
+        control_cup = np.array(control) - theta * np.array(control_before)
+        test_cup = np.array(test) - theta * np.array(test_before)
+        
+        if test_type == 'absolute':
+            return my_stat_functions.test_ttest(control_cup, test_cup, alpha, test_type = 'absolute')
+        if test_type == 'relative':
+            mean_den = np.mean(control)
+            mean_num = np.mean(test_cup) - np.mean(control_cup)
+            var_mean_den  = np.var(control) / len(control)
+            var_mean_num  = np.var(test_cup) / len(test_cup) + np.var(control_cup) / len(control_cup)
+
+            cov = -np.cov(np.array(control_cup), np.array(control))[0, 1] / len(control)
+
+            relative_mu = mean_num / mean_den
+            relative_var = var_mean_num / (mean_den ** 2)  + var_mean_den * ((mean_num ** 2) / (mean_den ** 4))\
+                        - 2 * (mean_num / (mean_den ** 3)) * cov
+
+            relative_distribution = sps.norm(loc=relative_mu, scale=np.sqrt(relative_var))
+            left_bound, right_bound = relative_distribution.ppf([alpha/2, 1 - alpha/2])
+
+            ci_length = (right_bound - left_bound)
+            pvalue = 2 * min(relative_distribution.cdf(0), relative_distribution.sf(0))
+            effect = relative_mu
+            return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+    def bootstrap_test(control, test, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratified = False, control_categories = None, test_categories = None, chart = False):
+        from collections import namedtuple
+        import scipy.stats as sps
+        import seaborn as sns
+        ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', ['alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+
+        absolute_func = lambda C, T: T - C
+        relative_func = lambda C, T: T / C - 1
+
+        boot_func = absolute_func if test_type == 'absolute' else relative_func
+
+        if stratified != True:
+            boot_len = max([len(control), len(test)])
+            indices = np.random.randint(0, len(control), (n_samples, boot_len))
+            control_samples = np.array(control)[indices]
+            indices = np.random.randint(0, len(test), (n_samples, boot_len))
+            test_samples = np.array(test)[indices]
+        if stratified == True:
+            control_samples, test_samples = my_stat_functions.__get_stratified_samples(control, test, control_categories, test_categories, n_samples)
+
+        control_boot = np.array(list(map(lambda x: stat_func(x), control_samples)))
+        test_boot = np.array(list(map(lambda x: stat_func(x), test_samples)))
+        boot_data = boot_func(control_boot, test_boot)
+
+        left_bound, right_bound = np.quantile(boot_data, [alpha/2, 1 - alpha/2])
+        ci_length = (right_bound - left_bound)
+        effect = boot_func(stat_func(control), stat_func(test))
+        pvalue = 2 * min(np.mean(boot_data > 0), np.mean(boot_data < 0))
+
+        if chart == True:
+            sns.distplot(control_boot, label = 'control')
+            sns.distplot(test_boot, label = 'test')
+            plt.title("Distributions of statistic")
+            plt.xlabel('statistic')
+            plt.ylabel('density')
+            plt.legend()
+            plt.show()
+
+        return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+    def post_normed_bootstrap_test(control, test, control_before, test_before, alpha = 0.05, test_type='absolute', n_samples = 1000):
+        from collections import namedtuple
+        import scipy.stats as sps
+        ExperimentComparisonResults = namedtuple('ExperimentComparisonResults', ['alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound'])
+                           
+        absolute_func = lambda C, T, C_b, T_b: T - (T_b / C_b) * C
+        relative_func = lambda C, T, C_b, T_b: (T / C) / (T_b / C_b) - 1
+                           
+        boot_func = absolute_func if test_type == 'absolute' else relative_func
+        boot_len = max([len(control), len(test)])
+        
+        indices = np.random.randint(0, len(control), (n_samples, boot_len))
+        control_samples = np.array(control)[indices]
+        control_before_samples = np.array(control_before)[indices]
+        indices = np.random.randint(0, len(test), (n_samples, boot_len))
+        test_samples = np.array(test)[indices]
+        test_before_samples = np.array(test_before)[indices]
+        
+        control_boot = np.array(list(map(lambda x: np.mean(x), control_samples)))
+        control_before_boot = np.array(list(map(lambda x: np.mean(x), control_before_samples)))
+        test_boot = np.array(list(map(lambda x: np.mean(x), test_samples)))
+        test_before_boot = np.array(list(map(lambda x: np.mean(x), test_before_samples)))
+        boot_data = boot_func(control_boot, test_boot, control_before_boot, test_before_boot)
+        
+        left_bound, right_bound = np.quantile(boot_data, [alpha/2, 1 - alpha/2])
+        ci_length = (right_bound - left_bound)
+        effect = boot_func(np.mean(control), np.mean(test), np.mean(control_before), np.mean(test_before))
+        pvalue = 2 * min(np.mean(boot_data > 0), np.mean(boot_data < 0))
+        
+        return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+    def checking_test(data, values_column, before_values_column = None, one_group_size = None, difference_pct = 0, alpha = 0.05, criterion = 'ttest', bootstrap_n_samples = 1000, stratified = False, categories_column = None, iterations = 5000):
+        '''
+        one_group_size: if our value is float, then we will take a fraction of our data, and if our value is int, then we will take this sample size
+        difference_pct: if 0, then AA, else AB
+        criterion: 'ttest','ttest_cuped','bootstrap','post_normed_bootstrap'. But if you choose bootstrap, then determine the number of bootstrap subsamples - bootstrap_n_samples. If you choose ttest_cuped or post_normed_bootstrap, then you must determine before_values_column in data
+        '''
+        from collections import namedtuple
+        import scipy.stats as sps
+        from statsmodels.stats.proportion import proportion_confint
+        from tqdm.notebook import tqdm as tqdm_notebook
+        # variables
+        if one_group_size == None: one_group_size = 0.5    
+        results = pd.DataFrame()
+
+        # preparing for stratification
+        if stratified == True:
+            if categories_column == None:
+                print('''if stratified == True, then categories mustn't be a None.''')
+                return None
+            max_values_in_categories = data[categories_column].value_counts().rename('count').reset_index().rename(columns = {'index':'category'}).groupby('category')['count'].max().reset_index()
+            max_values_in_categories['weight'] = max_values_in_categories['count'] / max_values_in_categories['count'].sum()
+            categories = data[categories_column].unique()
+            categories_sizes = {row['category']:row['count'] for _, row in max_values_in_categories.iterrows()}
+            categories_dataframes = {row['category']:data.query(f'''{categories_column}=="{row['category']}"''') for _, row in max_values_in_categories.iterrows()}
+            if type(one_group_size) == float:
+                categories_samples_sizes = {row['category']:int(row['count'] * one_group_size) for _, row in max_values_in_categories.iterrows()}
+            elif type(one_group_size) == int:
+                categories_samples_sizes = {row['category']:int(row['weight'] * one_group_size) for _, row in max_values_in_categories.iterrows()}
+            else:
+                print('one_group_size variable must be a float or int value!')
+                return None
+
+        # create our counters 
+        count_dif = 0
+        count_level = 0
+
+        # start iterations
+        for i in tqdm_notebook(range(iterations)):
+            # get control and test samples
+            if stratified == True:
+                control = np.array([])
+                control_before = np.array([])
+                test = np.array([])
+                test_before = np.array([])
+                for category in categories: 
+                    category_size = categories_sizes[category]
+                    category_sample_size = categories_samples_sizes[category]
+
+                    indices = np.random.randint(0, category_size, category_sample_size)
+                    control = np.concatenate([control, categories_dataframes[category][values_column].values[indices]], axis = 0)
+                    if criterion in ['ttest_cuped','post_normed_bootstrap']:
+                        control_before = np.concatenate([control_before, categories_dataframes[category][before_values_column].values[indices]], axis = 0)
+                    indices = np.random.randint(0, category_size, category_sample_size)
+                    test = np.concatenate([test, categories_dataframes[category][values_column].values[indices] * (1 + (difference_pct / 100))], axis = 0)
+                    if criterion in ['ttest_cuped','post_normed_bootstrap']:
+                        test_before = np.concatenate([test_before, categories_dataframes[category][before_values_column].values[indices]], axis = 0)
+            else:
+                if type(one_group_size) == float:
+                    boot_len = int(len(data) * one_group_size)
+                elif type(one_group_size) == int:
+                    boot_len = one_group_size
+
+                indices = np.random.randint(0, len(data), boot_len)
+                if criterion in ['ttest_cuped','post_normed_bootstrap']:
+                    control_before = data[before_values_column].values[indices]
+                control = data[values_column].values[indices]
+
+                indices = np.random.randint(0, len(data), boot_len)
+                if criterion in ['ttest_cuped','post_normed_bootstrap']:
+                    test_before = data[before_values_column].values[indices]
+                test = data[values_column].values[indices] * (1 + (difference_pct / 100))
+
+            # using criterion and counting cases detected difference
+            if criterion == 'ttest':
+                _, _, _, _, left_bound, right_bound = my_stat_functions.t_test(control, test, alpha, test_type = 'relative')
+            if criterion == 'ttest_cuped':
+                _, _, _, _, left_bound, right_bound = my_stat_functions.t_test_cuped(control, test, control_before, test_before, alpha, test_type = 'relative')
+            if criterion == 'bootstrap':
+                _, _, _, _, left_bound, right_bound = my_stat_functions.bootstrap_test(control, test, alpha, test_type = 'relative', n_samples = bootstrap_n_samples)
+            if criterion == 'post_normed_bootstrap':
+                _, _, _, _, left_bound, right_bound = my_stat_functions.post_normed_bootstrap_test(control, test, control_before, test_before, alpha, test_type = 'relative')
+            if left_bound > 0 or right_bound < 0:
+                count_dif += 1
+            if left_bound > difference_pct / 100 or right_bound < difference_pct / 100:
+                count_level += 1
+
+        # create results
+        left_real_level, right_real_level = proportion_confint(count = count_level, nobs = iterations, alpha=0.05, method='wilson')
+        results.loc[0, 'criterion'] = criterion
+        if difference_pct == 0:
+            results.loc[0, 'type'] = 'AA'
+        else:
+            results.loc[0, 'type'] = 'AB'
+        if type(one_group_size) == float:
+            results.loc[0, 'one_group_size'] = one_group_size * len(data)
+        elif type(one_group_size) == int:
+            results.loc[0, 'one_group_size'] = one_group_size
+        results.loc[0, 'difference_pct'] = difference_pct
+        results.loc[0, 'alpha'] = alpha
+        results.loc[0, 'stratified'] = stratified
+        results.loc[0, 'iterations'] = iterations
+        results.loc[0, 'dif_detected/power'] = round(count_dif / iterations, 4)
+        results.loc[0, 'real_level'] = round(count_level / iterations, 4)
+        results.loc[0, 'left_real_level'] = left_real_level
+        results.loc[0, 'right_real_level'] = right_real_level
+        return results  
+    def checking_iterable_test(data, values_column, before_values_column = None, one_group_size = None, difference_pct = 0, alpha = 0.05, criterion = 'ttest', bootstrap_n_samples = 1000, stratified = False, categories_column = None, iterations = 5000):
+        '''
+        one_group_size: if our value is float, then we will take a fraction of our data, and if our value is int, then we will take this sample size
+        difference_pct: if 0, then AA, else AB
+        criterion: 'ttest','ttest_cuped','bootstrap','post_normed_bootstrap'. But if you choose bootstrap, then determine the number of bootstrap subsamples - bootstrap_n_samples. If you choose ttest_cuped or post_normed_bootstrap, then you must determine before_values_column in data
+        '''
+        vars_dict = {
+            'one_group_size':one_group_size,
+            'difference_pct':difference_pct,
+            'alpha':alpha,
+            'criterion':criterion,
+            'bootstrap_n_samples':bootstrap_n_samples,
+            'stratified':stratified,
+            'categories_column':categories_column,
+            'iterations':iterations
+        }
+        iterable_vars_dict = {name:vars_dict[name] for name in vars_dict if type(vars_dict[name])==list}
+        if np.mean([len(iterable_vars_dict[name]) for name in iterable_vars_dict]) != [len(iterable_vars_dict[name]) for name in iterable_vars_dict][0]:
+            print('Error! vars lists must be the same length!')
+            return None
+        results = pd.DataFrame()
+        for _, row in pd.DataFrame(vars_dict).iterrows():
+            print('\n')
+            print(row.to_dict())
+            results = pd.concat([results, my_stat_functions.checking_test(data, values_column, before_values_column, **row.to_dict())])
+        return results
