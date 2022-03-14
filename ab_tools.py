@@ -78,19 +78,21 @@ class BootstrapTwoSamples:
             else:
                 data = CompareTwoSamples(self.Control, self.Test).df().assign(category = 'no_category')
             
-            control_category_values = data.query('group=="control" and category==@category')['value']
-            test_category_values = data.query('group=="test" and category==@category')['value']
+            control_category_values = data.query(f'group=="{self.control_name}" and category==@category')['value']
+            test_category_values = data.query(f'group=="{self.test_name}" and category==@category')['value']
             if before_samples == True:
-                control_category_before_values = data.query('group=="control" and category==@category')['value_before']
-                test_category_before_values = data.query('group=="test" and category==@category')['value_before']
+                control_category_before_values = data.query(f'group=="{self.control_name}" and category==@category')['value_before']
+                test_category_before_values = data.query(f'group=="{self.test_name}" and category==@category')['value_before']
             
+            print(len(control_category_values))
             indices = np.random.randint(0, len(control_category_values), (n_samples, boot_len))
             if index == 0: control_samples = control_category_values.values[indices]
             if index != 0: control_samples = np.concatenate([control_samples, control_category_values.values[indices]], axis = 1)
             if before_samples == True:
                 if index == 0: control_before_samples = control_category_before_values.values[indices]
                 if index != 0: control_before_samples = np.concatenate([control_before_samples, control_category_before_values.values[indices]], axis = 1)
-
+            
+            print(len(test_category_values))
             indices = np.random.randint(0, len(test_category_values), (n_samples, boot_len))
             if index == 0: test_samples = test_category_values.values[indices]
             if index != 0: test_samples = np.concatenate([test_samples, test_category_values.values[indices]], axis = 1)
@@ -120,10 +122,13 @@ class BootstrapTwoSamples:
             return control_boot, test_boot
         
 class Sample(BootstrapOneSample):
-    def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None):
+    name = 'sample'
+    def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None, name:str = 'sample'):
         self.array = np.array(array)
         self.series = pd.Series(array)
         self.array_before = np.array(array_before)
+        Sample.name = name
+        self.name = name
         if len(self.array.shape) > 1:
             print('Выборкой должен быть одномерный массив!')
             return None
@@ -157,7 +162,7 @@ class Sample(BootstrapOneSample):
             return pd.concat([self.df().groupby(['category']).describe(), self.df().assign(category = 'all').groupby(['category']).describe()])
     def hist(self, outliers_perc = [0,100]):
         down_limit, up_limit = np.percentile(self.array, outliers_perc)
-        sns.distplot(self.array[np.logical_and(self.array<=up_limit, self.array>=down_limit)], label = 'values')
+        sns.distplot(self.array[np.logical_and(self.array<=up_limit, self.array>=down_limit)], label = self.name)
         plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
         plt.legend()
         plt.show()
@@ -174,8 +179,10 @@ class CompareTwoSamples(BootstrapTwoSamples):
         self.test_before = Test.array_before
         self.Control = Control
         self.Test = Test
+        self.control_name = 'control' if self.Control.name == 'sample' else self.Control.name
+        self.test_name = 'test' if self.Test.name == 'sample' else self.Test.name
     def df(self):
-        return pd.concat([self.Control.df().assign(group = 'control'), self.Test.df().assign(group = 'test')])
+        return pd.concat([self.Control.df().assign(group = self.control_name), self.Test.df().assign(group = self.test_name)])
     def describe(self):
         if self.control_categories is None or self.test_categories is None:
             return self.df().assign(category = 'all').groupby(['category','group']).describe()
@@ -268,8 +275,8 @@ class CompareTwoSamples(BootstrapTwoSamples):
         pvalue = 2 * min(np.mean(boot_data > 0), np.mean(boot_data < 0))
 
         if chart == True:
-            sns.distplot(control_boot, label = 'control')
-            sns.distplot(test_boot, label = 'test')
+            sns.distplot(control_boot, label = self.control_name)
+            sns.distplot(test_boot, label = self.test_name)
             plt.title("Distributions of statistic")
             plt.xlabel('statistic')
             plt.ylabel('density')
@@ -288,14 +295,14 @@ class CompareTwoSamples(BootstrapTwoSamples):
         
         left_bound, right_bound = np.quantile(boot_data, [alpha/2, 1 - alpha/2])
         ci_length = (right_bound - left_bound)
-        effect = boot_func(np.mean(control), np.mean(test), np.mean(control_before), np.mean(test_before))
+        effect = boot_func(np.mean(self.control), np.mean(self.test), np.mean(self.control_before), np.mean(self.test_before))
         pvalue = 2 * min(np.mean(boot_data > 0), np.mean(boot_data < 0))
         
         if chart == True:
-            sns.distplot(control_boot, label = 'control', color = u'#00538a')
-            sns.distplot(test_boot, label = 'test', color =  u'#ff7f0e')
-            sns.distplot(control_before_boot, label = 'control_before', color = u'#2e93db')
-            sns.distplot(test_before_boot, label = 'test_before', color =  u'#ff9a42')
+            sns.distplot(control_boot, label = self.control_name, color = u'#00538a')
+            sns.distplot(test_boot, label = self.test_name, color =  u'#ff7f0e')
+            sns.distplot(control_before_boot, label = str(self.control_name) + '_before', color = u'#2e93db')
+            sns.distplot(test_before_boot, label = str(self.test_name) + '_before', color =  u'#ff9a42')
             plt.title("Distributions of statistic")
             plt.xlabel('statistic')
             plt.ylabel('density')
@@ -307,8 +314,8 @@ class CompareTwoSamples(BootstrapTwoSamples):
         return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
     def hist(self, outliers_perc = [0,100]):
         down_limit, up_limit = np.percentile(np.concatenate([self.Control.array,self.Test.array]), outliers_perc)
-        sns.distplot(self.Control.array[np.logical_and(self.Control.array<=up_limit, self.Control.array>=down_limit)], label = 'control')
-        sns.distplot(self.Test.array[np.logical_and(self.Test.array<=up_limit, self.Test.array>=down_limit)], label = 'test')
+        sns.distplot(self.Control.array[np.logical_and(self.Control.array<=up_limit, self.Control.array>=down_limit)], label = self.control_name)
+        sns.distplot(self.Test.array[np.logical_and(self.Test.array<=up_limit, self.Test.array>=down_limit)], label = self.test_name)
         plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
         plt.legend()
         plt.show()
