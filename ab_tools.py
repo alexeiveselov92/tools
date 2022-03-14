@@ -8,64 +8,61 @@ from collections import namedtuple
 import seaborn as sns 
 from tqdm.notebook import tqdm as tqdm_notebook
 from statsmodels.stats.proportion import proportion_confint
-    
-class Utils:
-    def similar_sample(sample, size = None):
-        '''
-        Эта функция создает похожую выборку с таким же распределением
-        '''
-        if size is None:
-            size = len(sample)
-        hist = np.histogram(sample, bins = len(sample))
-        return sps.rv_histogram(hist).rvs(size = len(sample))
 
-class Sample:
-    def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None):
-        self.array = np.array(array)
-        self.series = pd.Series(array)
-        self.array_before = np.array(array_before)
-        if len(self.array.shape) > 1:
-            print('Выборкой должен быть одномерный массив!')
-            return None
-        
-        if categories is None:
-            self.categories = pd.Series(['no_category' for i in range(self.count())], name = 'category')
+class BootstrapOneSample:
+    def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False, size = None):
+        if size is None:
+            size = self.count()
+        if stratify == True:
+            categories_iterable_df = self.count_category_sizes()
         else:
-            self.categories = pd.Series(categories, name = 'category')
+            categories_iterable_df = pd.DataFrame({'category':['no_category'], 'count':[self.count()]})
+        categories_iterable_df['weight'] = categories_iterable_df['count'] / categories_iterable_df['count'].sum()
+        for index, row in categories_iterable_df.iterrows():
+            category_size = row['count']
+            category_weight = row['weight']
+            category = row['category']
+            if stratify == True:
+                data = self.df()
+            else:
+                data = self.df().assign(category = 'no_category')
             
-        if len(self.categories) != self.count():
-            print('a и categories должны быть одной длины!')
-            return None
-    def __str__(self):
-        return f'{self.array}'
-    def df(self):
-        return pd.DataFrame({'category':self.categories, 'value':self.array, 'value_before':self.array_before})
-    def mean(self):
-        return np.mean(self.array)
-    def std(self):
-        return np.std(self.array)
-    def count(self):
-        return self.array.shape[0]
-    def count_categories(self):
-        return len(set(self.categories))
-    def count_category_sizes(self):
-        return self.categories.value_counts().reset_index().rename(columns = {'index':'category','category':'count'})
-    def describe(self):
-        if self.categories.nunique() == 1:
-            return self.df().groupby(['category']).describe()
+            category_values = data.query('category==@category')['value']
+            if before_samples == True:
+                category_before_values = data.query('category==@category')['value_before']
+            
+            if type(size) == float:
+                boot_len = int(category_size * size)
+            elif type(size) == int:
+                boot_len = int(category_weight * size)
+            
+            indices = np.random.randint(0, len(category_values), (n_samples, boot_len))
+            if index == 0: samples = category_values.values[indices]
+            if index != 0: samples = np.concatenate([samples, category_values.values[indices]], axis = 1)
+            if before_samples == True:
+                if index == 0: samples_before = category_before_values.values[indices]
+                if index != 0: samples_before = np.concatenate([samples_before, category_before_values.values[indices]], axis = 1)
+                    
+        if before_samples == True:
+            return samples, samples_before
         else:
-            return pd.concat([self.df().groupby(['category']).describe(), self.df().assign(category = 'all').groupby(['category']).describe()])
-    def hist(self, outliers_perc = [0,100]):
-        down_limit, up_limit = np.percentile(self.array, outliers_perc)
-        sns.distplot(self.array[np.logical_and(self.array<=up_limit, self.array>=down_limit)], label = 'values')
-        plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
-        plt.legend()
-        plt.show()
+            return samples
+    def boot_results(self, stat_func = np.mean, before_samples = None, n_samples = 1000, stratify = False):
+        if before_samples == True:
+            samples, samples_before = self.boot_samples(before_samples = before_samples, n_samples = n_samples, stratify = stratify)
+        else:
+            samples = self.boot_samples(before_samples = before_samples, n_samples = n_samples, stratify = stratify)
         
+        boot = np.array(list(map(lambda x: stat_func(x), samples)))
+        if before_samples == True:
+            before_boot = np.array(list(map(lambda x: stat_func(x), samples_before)))
+        
+        if before_samples == True:
+            return boot, before_boot
+        else:
+            return boot
+
 class BootstrapTwoSamples:
-    def __init__(self, Control:Sample, Test:Sample):
-        self.Control = Control
-        self.Test = Test
     def max_category_sizes(self):
         return pd.concat([self.Control.count_category_sizes(),self.Test.count_category_sizes()]).groupby('category', as_index = False)['count'].max()
     def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False):
@@ -122,90 +119,52 @@ class BootstrapTwoSamples:
         else:
             return control_boot, test_boot
         
-class BootstrapOneSample(Sample):
-    def __init__(self, Sample:Sample):
-        self.Sample = Sample
-        self.array = Sample.array
-        self.array_before = Sample.array_before
-        self.categories = Sample.categories
-    def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False, size = None):
-        if size is None:
-            size = self.Sample.count()
-        if stratify == True:
-            categories_iterable_df = self.count_category_sizes()
-        else:
-            categories_iterable_df = pd.DataFrame({'category':['no_category'], 'count':[self.Sample.count()]})
-        categories_iterable_df['weight'] = categories_iterable_df['count'] / categories_iterable_df['count'].sum()
-        for index, row in categories_iterable_df.iterrows():
-            category_size = row['count']
-            category_weight = row['weight']
-            category = row['category']
-            if stratify == True:
-                data = self.df()
-            else:
-                data = self.df().assign(category = 'no_category')
-            
-            category_values = data.query('category==@category')['value']
-            if before_samples == True:
-                category_before_values = data.query('category==@category')['value_before']
-            
-            if type(size) == float:
-                boot_len = int(category_size * size)
-            elif type(size) == int:
-                boot_len = int(category_weight * size)
-            
-            indices = np.random.randint(0, len(category_values), (n_samples, boot_len))
-            if index == 0: samples = category_values.values[indices]
-            if index != 0: samples = np.concatenate([samples, category_values.values[indices]], axis = 1)
-            if before_samples == True:
-                if index == 0: samples_before = category_before_values.values[indices]
-                if index != 0: samples_before = np.concatenate([samples_before, category_before_values.values[indices]], axis = 1)
-                    
-        if before_samples == True:
-            return samples, samples_before
-        else:
-            return samples
-    def boot_results(self, stat_func = np.mean, before_samples = None, n_samples = 1000, stratify = False):
-        if before_samples == True:
-            samples, samples_before = self.boot_samples(before_samples = before_samples, n_samples = n_samples, stratify = stratify)
-        else:
-            samples = self.boot_samples(before_samples = before_samples, n_samples = n_samples, stratify = stratify)
+class Sample(BootstrapOneSample):
+    def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None):
+        self.array = np.array(array)
+        self.series = pd.Series(array)
+        self.array_before = np.array(array_before)
+        if len(self.array.shape) > 1:
+            print('Выборкой должен быть одномерный массив!')
+            return None
         
-        boot = np.array(list(map(lambda x: stat_func(x), samples)))
-        if before_samples == True:
-            before_boot = np.array(list(map(lambda x: stat_func(x), samples_before)))
-        
-        if before_samples == True:
-            return boot, before_boot
+        if categories is None:
+            self.categories = pd.Series(['no_category' for i in range(self.count())], name = 'category')
         else:
-            return boot
-
-class ExperimentComparisonResults:
-    def __init__(self, alpha, pvalue, effect, ci_length, left_bound, right_bound):
-        self.alpha = alpha
-        self.pvalue = pvalue
-        self.effect = effect
-        self.ci_length = ci_length
-        self.left_bound = left_bound
-        self.right_bound = right_bound
+            self.categories = pd.Series(categories, name = 'category')
+            
+        if len(self.categories) != self.count():
+            print('a и categories должны быть одной длины!')
+            return None
     def __str__(self):
-        dict_results = {'alpha':alpha,'pvalue':pvalue,'effect':effect,'ci_length':ci_length,'left_bound':left_bound,'right_bound':right_bound}
-        return f'{dict_results}'
+        return f'{self.array}'
     def df(self):
-        return pd.DataFrame({'alpha':[self.alpha],
-            'pvalue':[self.pvalue],
-            'effect':[self.effect],
-            'ci_length':[self.ci_length],
-            'left_bound':[self.left_bound],
-            'right_bound':[self.right_bound]})
-    def tuple(self):
-        return self.alpha,self.pvalue,self.effect,self.ci_length,self.left_bound,self.right_bound
-    
-class CompareTwoSamplesInterface:
-    def hist(self):
-        raise NotImplemented("you should override this method")
+        return pd.DataFrame({'category':self.categories, 'value':self.array, 'value_before':self.array_before})
+    def mean(self):
+        return np.mean(self.array)
+    def std(self):
+        return np.std(self.array)
+    def count(self):
+        return self.array.shape[0]
+    def count_categories(self):
+        return len(set(self.categories))
+    def count_category_sizes(self):
+        return self.categories.value_counts().reset_index().rename(columns = {'index':'category','category':'count'})
+    def describe(self):
+        if self.categories.nunique() == 1:
+            return self.df().groupby(['category']).describe()
+        else:
+            return pd.concat([self.df().groupby(['category']).describe(), self.df().assign(category = 'all').groupby(['category']).describe()])
+    def hist(self, outliers_perc = [0,100]):
+        down_limit, up_limit = np.percentile(self.array, outliers_perc)
+        sns.distplot(self.array[np.logical_and(self.array<=up_limit, self.array>=down_limit)], label = 'values')
+        plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
+        plt.legend()
+        plt.show()
+    def __repr__(self):
+        return repr(self.df())
 
-class CompareTwoSamples(CompareTwoSamplesInterface):
+class CompareTwoSamples(BootstrapTwoSamples):
     def __init__(self, Control:Sample, Test:Sample):
         self.control = Control.array
         self.test = Test.array
@@ -353,7 +312,9 @@ class CompareTwoSamples(CompareTwoSamplesInterface):
         plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
         plt.legend()
         plt.show()
-
+    def __repr__(self):
+        return repr(self.df())
+    
 class CheckCriterion(Sample):
     def __init__(self, Sample:Sample):
         self.Sample = Sample
@@ -369,12 +330,12 @@ class CheckCriterion(Sample):
         count_level = 0
         
         if criterion in ['ttest_cuped', 'post_normed_bootstrap']:
-            control_samples, control_before_samples = BootstrapOneSample(self.Sample).boot_samples(before_samples = True, n_samples = iterations, size = one_group_size)
-            test_samples, test_before_samples = BootstrapOneSample(self.Sample).boot_samples(before_samples = True, n_samples = iterations, size = one_group_size)
+            control_samples, control_before_samples = self.Sample.boot_samples(before_samples = True, n_samples = iterations, size = one_group_size)
+            test_samples, test_before_samples = self.Sample.boot_samples(before_samples = True, n_samples = iterations, size = one_group_size)
             test_samples *= (1 + (difference_pct / 100))
         elif criterion in ['ttest', 'bootstrap']:
-            control_samples = BootstrapOneSample(self.Sample).boot_samples(before_samples = False, n_samples = iterations, size = one_group_size)
-            test_samples = BootstrapOneSample(self.Sample).boot_samples(before_samples = False, n_samples = iterations, size = one_group_size)
+            control_samples = self.Sample.boot_samples(before_samples = False, n_samples = iterations, size = one_group_size)
+            test_samples = self.Sample.boot_samples(before_samples = False, n_samples = iterations, size = one_group_size)
             test_samples *= (1 + (difference_pct / 100))
         
         if criterion in ['ttest', 'bootstrap']:
@@ -453,3 +414,34 @@ class CheckCriterion(Sample):
         return self.check_iterable(one_group_size, difference_pct, alpha, criterion = 'bootstrap', iterations = iterations)
     def post_normed_bootstrap_test(self, one_group_size = None, difference_pct = 0, alpha = 0.05, iterations = 5000):
         return self.check_iterable(one_group_size, difference_pct, alpha, criterion = 'post_normed_bootstrap', iterations = iterations)
+    
+class ExperimentComparisonResults:
+    def __init__(self, alpha, pvalue, effect, ci_length, left_bound, right_bound):
+        self.alpha = alpha
+        self.pvalue = pvalue
+        self.effect = effect
+        self.ci_length = ci_length
+        self.left_bound = left_bound
+        self.right_bound = right_bound
+    def __str__(self):
+        dict_results = {'alpha':alpha,'pvalue':pvalue,'effect':effect,'ci_length':ci_length,'left_bound':left_bound,'right_bound':right_bound}
+        return f'{dict_results}'
+    def df(self):
+        return pd.DataFrame({'alpha':[self.alpha],
+            'pvalue':[self.pvalue],
+            'effect':[self.effect],
+            'ci_length':[self.ci_length],
+            'left_bound':[self.left_bound],
+            'right_bound':[self.right_bound]})
+    def tuple(self):
+        return self.alpha,self.pvalue,self.effect,self.ci_length,self.left_bound,self.right_bound
+    
+class Utils:
+    def similar_sample(sample, size = None):
+        '''
+        Эта функция создает похожую выборку с таким же распределением
+        '''
+        if size is None:
+            size = len(sample)
+        hist = np.histogram(sample, bins = len(sample))
+        return sps.rv_histogram(hist).rvs(size = len(sample))
