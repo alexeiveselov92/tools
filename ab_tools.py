@@ -259,7 +259,7 @@ class CompareTwoSamples(BootstrapTwoSamples):
 
         boot_func = absolute_func if test_type == 'absolute' else relative_func
 
-        control_boot, test_boot = BootstrapTwoSamples(self.Control, self.Test).boot_results(stat_func = stat_func, before_samples = None, n_samples = n_samples, stratify = stratify)
+        control_boot, test_boot = self.boot_results(stat_func = stat_func, before_samples = None, n_samples = n_samples, stratify = stratify)
         boot_data = boot_func(control_boot, test_boot)
 
         left_bound, right_bound = np.quantile(boot_data, [alpha/2, 1 - alpha/2])
@@ -283,7 +283,7 @@ class CompareTwoSamples(BootstrapTwoSamples):
                            
         boot_func = absolute_func if test_type == 'absolute' else relative_func
         
-        control_boot, control_before_boot, test_boot, test_before_boot = BootstrapTwoSamples(self.Control, self.Test).boot_results(stat_func = stat_func, before_samples = True, n_samples = n_samples, stratify = stratify)
+        control_boot, control_before_boot, test_boot, test_before_boot = self.boot_results(stat_func = stat_func, before_samples = True, n_samples = n_samples, stratify = stratify)
         boot_data = boot_func(control_boot, test_boot, control_before_boot, test_before_boot)
         
         left_bound, right_bound = np.quantile(boot_data, [alpha/2, 1 - alpha/2])
