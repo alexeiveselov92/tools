@@ -136,7 +136,6 @@ class BootstrapTwoSamples:
             patch.set_edgecolor('black') # or try 'black'
             patch.set_linewidth(1)
         plt.title('Distributions of statistic')
-        plt.legend()
         plt.show()      
 class Sample(BootstrapOneSample):
     name = 'sample'
