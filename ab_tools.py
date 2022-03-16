@@ -8,6 +8,7 @@ from collections import namedtuple
 import seaborn as sns 
 from tqdm.notebook import tqdm as tqdm_notebook
 from statsmodels.stats.proportion import proportion_confint
+import matplotlib.pyplot as plt
 
 class BootstrapOneSample:
     def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False, size = None):
@@ -61,7 +62,8 @@ class BootstrapOneSample:
             return boot, before_boot
         else:
             return boot
-
+    def bootstrap_ci(self, alpha = 0.05, stat_func = np.mean, n_samples = 1000, stratify = False):
+        return np.percentile(self.boot_results(stat_func = stat_func, n_samples = n_samples, stratify = stratify), [alpha/2, 100-alpha/2])
 class BootstrapTwoSamples:
     def max_category_sizes(self):
         return pd.concat([self.Control.count_category_sizes(),self.Test.count_category_sizes()]).groupby('category', as_index = False)['count'].max()
@@ -84,7 +86,6 @@ class BootstrapTwoSamples:
                 control_category_before_values = data.query(f'group=="{self.control_name}" and category==@category')['value_before']
                 test_category_before_values = data.query(f'group=="{self.test_name}" and category==@category')['value_before']
             
-            print(len(control_category_values))
             indices = np.random.randint(0, len(control_category_values), (n_samples, boot_len))
             if index == 0: control_samples = control_category_values.values[indices]
             if index != 0: control_samples = np.concatenate([control_samples, control_category_values.values[indices]], axis = 1)
@@ -92,7 +93,6 @@ class BootstrapTwoSamples:
                 if index == 0: control_before_samples = control_category_before_values.values[indices]
                 if index != 0: control_before_samples = np.concatenate([control_before_samples, control_category_before_values.values[indices]], axis = 1)
             
-            print(len(test_category_values))
             indices = np.random.randint(0, len(test_category_values), (n_samples, boot_len))
             if index == 0: test_samples = test_category_values.values[indices]
             if index != 0: test_samples = np.concatenate([test_samples, test_category_values.values[indices]], axis = 1)
@@ -119,8 +119,25 @@ class BootstrapTwoSamples:
         if before_samples == True:
             return control_boot, control_before_boot, test_boot, test_before_boot
         else:
-            return control_boot, test_boot
-        
+            return control_boot, test_boot  
+    def bootstrap_ci(self, alpha = 0.05, stat_func = np.mean, boot_func = lambda C,T:T-C, n_samples = 1000, stratify = False):
+        control_boot, test_boot = self.boot_results(stat_func = stat_func, before_samples = False, n_samples = n_samples, stratify = stratify)
+        boot_data = boot_func(control_boot, test_boot)
+        return np.percentile(boot_data, [alpha/2, 100-alpha/2])
+    def bootstrap_boxplots(self, alpha = 0.05, stat_func = np.mean, boot_func = lambda C,T:T-C, n_samples = 1000, stratify = False):
+        control_boot, test_boot = self.boot_results(stat_func = stat_func, before_samples = False, n_samples = n_samples, stratify = stratify)       
+        fig = plt.figure(figsize =(16, 9))
+        ax = fig.add_subplot(111)
+        bp = ax.boxplot([control_boot, test_boot], labels = [self.Control.name, self.Test.name], patch_artist = True, whis = [alpha/2, 100-alpha/2], widths = 0.5)
+        colors = [u'#00538a', u'#ff9a42']
+        for patch, color in zip(bp['boxes'], colors): 
+            patch.set_facecolor(color)
+            patch.set_alpha(0.6)
+            patch.set_edgecolor('black') # or try 'black'
+            patch.set_linewidth(1)
+        plt.title('Distributions of statistic')
+        plt.legend()
+        plt.show()      
 class Sample(BootstrapOneSample):
     name = 'sample'
     def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None, name:str = 'sample'):
@@ -168,7 +185,6 @@ class Sample(BootstrapOneSample):
         plt.show()
     def __repr__(self):
         return repr(self.df())
-
 class CompareTwoSamples(BootstrapTwoSamples):
     def __init__(self, Control:Sample, Test:Sample):
         self.control = Control.array
@@ -321,10 +337,8 @@ class CompareTwoSamples(BootstrapTwoSamples):
         plt.show()
     def __repr__(self):
         return repr(self.df())
-    
 class CheckCriterion(Sample):
     def __init__(self, Sample:Sample):
-        self.Sample = Sample
         self.Sample = Sample
         self.array = Sample.array
         self.array = Sample.array_before
@@ -382,7 +396,7 @@ class CheckCriterion(Sample):
         else:
             results.loc[0, 'type'] = 'AB'
         if type(one_group_size) == float:
-            results.loc[0, 'one_group_size'] = one_group_size * len(data)
+            results.loc[0, 'one_group_size'] = int(one_group_size * self.Sample.count())
         elif type(one_group_size) == int:
             results.loc[0, 'one_group_size'] = one_group_size
         results.loc[0, 'difference_pct'] = difference_pct
@@ -421,7 +435,6 @@ class CheckCriterion(Sample):
         return self.check_iterable(one_group_size, difference_pct, alpha, criterion = 'bootstrap', iterations = iterations)
     def post_normed_bootstrap_test(self, one_group_size = None, difference_pct = 0, alpha = 0.05, iterations = 5000):
         return self.check_iterable(one_group_size, difference_pct, alpha, criterion = 'post_normed_bootstrap', iterations = iterations)
-    
 class ExperimentComparisonResults:
     def __init__(self, alpha, pvalue, effect, ci_length, left_bound, right_bound):
         self.alpha = alpha
@@ -442,7 +455,6 @@ class ExperimentComparisonResults:
             'right_bound':[self.right_bound]})
     def tuple(self):
         return self.alpha,self.pvalue,self.effect,self.ci_length,self.left_bound,self.right_bound
-    
 class Utils:
     def similar_sample(sample, size = None):
         '''
