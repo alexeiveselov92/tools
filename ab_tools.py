@@ -9,6 +9,10 @@ import seaborn as sns
 from tqdm.notebook import tqdm as tqdm_notebook
 from statsmodels.stats.proportion import proportion_confint
 import matplotlib.pyplot as plt
+import math as mth
+from scipy.stats import f_oneway
+from itertools import combinations_with_replacement, permutations, combinations
+import itertools
 
 class BootstrapOneSample:
     def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False, size = None):
@@ -463,3 +467,91 @@ class Utils:
             size = len(sample)
         hist = np.histogram(sample, bins = len(sample))
         return sps.rv_histogram(hist).rvs(size = len(sample))
+    def get_all_combinations(array, lenght):
+        return itertools.combinations(array, lenght)
+
+class Fraction:
+    def __init__(self, count: int, nobs: int):
+        self.count = count
+        self.nobs = nobs
+class CompareTwoFractions:
+    def __init__(self, Test:Fraction, Control:Fraction):
+        self.Control = Control
+        self.Test = Test
+    def z_test(self, alpha = 0.05):
+        # пропорция успехов в первой группе:
+        p1 = self.Control.count/self.Control.nobs
+        # пропорция успехов во второй группе:
+        p2 = self.Test.count/self.Test.nobs
+        # пропорция успехов в комбинированном датасете:
+        p_combined = (self.Control.count + self.Test.count) / (self.Control.nobs + self.Test.nobs)
+        # разница пропорций в датасетах
+        difference = effect = p1 - p2 
+
+        # считаем статистику в ст.отклонениях стандартного нормального распределения
+        z_value = difference / mth.sqrt(p_combined * (1 - p_combined) * (1/self.Control.nobs + 1/self.Test.nobs))
+        # задаем стандартное нормальное распределение (среднее 0, ст.отклонение 1)
+        distr = sps.norm(0, 1) 
+        pvalue = (1 - distr.cdf(abs(z_value))) * 2
+        # найдем доверительный интервал разницы
+        se_1 = np.sqrt (p1 * (1 - p1) / self.Control.nobs)
+        se_2 = np.sqrt (p2 * (1 - p2) / self.Test.nobs)
+        se_diff = np.sqrt(se_1**2 + se_2**2)
+        left_bound, right_bound = difference - sps.norm(0,1).ppf(1-alpha/2) * se_diff, difference + sps.norm(0,1).ppf(1-alpha/2) * se_diff
+        ci_length = (right_bound - left_bound)
+        
+        return ExperimentComparisonResults(alpha, pvalue, effect, ci_length, left_bound, right_bound)
+
+class MultipleSamples:
+    def sample_combinations(self):
+        return Utils.get_all_combinations(self.Samples, 2)
+class CompareMultipleSamples(MultipleSamples):
+    def __init__(self, Samples:list):
+        self.samples_count = len(Samples)
+        self.Samples = Samples
+        self.arrays = [sample.array for sample in Samples]
+        self.names = [sample.name for sample in Samples]
+    def df(self):
+        return pd.concat([sample.df().assign(group = sample.name) for sample in self.Samples])
+    def describe(self):
+        if np.max([sample.count_categories() for sample in self.Samples]) > 1:
+            return pd.concat([self.df().groupby(['category','group']).describe(), self.df().assign(category = 'all').groupby(['category','group']).describe()]).sort_index()
+        else:
+            return self.df().assign(category = 'all').groupby(['category','group']).describe()            
+    def anova_test(self, alpha = 0.05):
+        _, pvalue = f_oneway(*self.arrays)
+        return ExperimentComparisonResults(alpha, pvalue, None, None, None, None)
+    # попарное сравнение всех групп друг с другом (t_test, t_test_cuped, bootsrap_test, post_normed_bootsrap, anova pairs)
+    def t_test(self, alpha = 0.05, test_type = 'absolute'):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).t_test(alpha = alpha, test_type = test_type).df().assign(group_1 = Control.name, group_2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group_1', 'group_2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+    def t_test_cuped(self, alpha = 0.05, test_type = 'absolute'):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).t_test_cuped(alpha = alpha, test_type = test_type).df().assign(group_1 = Control.name, group_2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group_1', 'group_2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+    def bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group_1 = Control.name, group_2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group_1', 'group_2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+    def post_normed_bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).post_normed_bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group_1 = Control.name, group_2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group_1', 'group_2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+    def hist(self, outliers_perc = [0,100]):
+        down_limit, up_limit = np.percentile(np.concatenate([sample.array for sample in self.Samples]), outliers_perc)
+        for sample in self.Samples:
+            sns.distplot(sample.array[np.logical_and(sample.array<=up_limit, sample.array>=down_limit)], label = sample.name)
+        plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
+        plt.legend()
+        plt.show()
+    def __repr__(self):
+        return repr(self.df())
