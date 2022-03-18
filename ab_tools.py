@@ -451,12 +451,14 @@ class ExperimentComparisonResults:
         dict_results = {'alpha':alpha,'pvalue':pvalue,'effect':effect,'ci_length':ci_length,'left_bound':left_bound,'right_bound':right_bound}
         return f'{dict_results}'
     def df(self):
-        return pd.DataFrame({'alpha':[self.alpha],
+        results = pd.DataFrame({'alpha':[self.alpha],
             'pvalue':[self.pvalue],
             'effect':[self.effect],
             'ci_length':[self.ci_length],
             'left_bound':[self.left_bound],
             'right_bound':[self.right_bound]})
+        results['reject'] = results.apply(lambda row: True if row['pvalue'] < row['alpha'] else False, axis = 1)
+        return results
     def tuple(self):
         return self.alpha,self.pvalue,self.effect,self.ci_length,self.left_bound,self.right_bound
 class Utils:
@@ -497,25 +499,25 @@ class CompareMultipleSamples(MultipleSamples):
         for Control, Test in self.sample_combinations():
             compare_df = CompareTwoSamples(Control, Test).t_test(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
             results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
     def t_test_cuped(self, alpha = 0.05, test_type = 'absolute'):
         results = pd.DataFrame()
         for Control, Test in self.sample_combinations():
             compare_df = CompareTwoSamples(Control, Test).t_test_cuped(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
             results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
     def bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
         results = pd.DataFrame()
         for Control, Test in self.sample_combinations():
             compare_df = CompareTwoSamples(Control, Test).bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
             results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
     def post_normed_bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
         results = pd.DataFrame()
         for Control, Test in self.sample_combinations():
             compare_df = CompareTwoSamples(Control, Test).post_normed_bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
             results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
     def hist(self, outliers_perc = [0,100]):
         down_limit, up_limit = np.percentile(np.concatenate([sample.array for sample in self.Samples]), outliers_perc)
         for sample in self.Samples:
@@ -591,4 +593,4 @@ class CompareMultipleFractions(MultipleFractions):
         for Control, Test in self.fraction_combinations():
             compare_df = CompareTwoFractions(Control, Test).z_test(alpha = alpha).df().assign(group1 = Control.name, group2 = Test.name)
             results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound']]
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
