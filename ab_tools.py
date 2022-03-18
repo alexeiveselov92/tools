@@ -472,6 +472,14 @@ class Utils:
         return sps.rv_histogram(hist).rvs(size = len(sample))
     def get_all_combinations(array, lenght):
         return itertools.combinations(array, lenght)
+    def get_samples(df, groups_column:str, values_column:str, categories_column:str = None, values_before_column:str = None):
+        samples_list = list() 
+        for group_name in df[groups_column].unique():
+            sample_df = df.query(f'{groups_column}==@group_name')
+            categories = None if categories_column == None else df[categories_column]
+            values_before = None if values_before_column == None else df[values_before_column]
+            samples_list.append(Sample(array = sample_df[values_column], categories = categories, array_before = values_before, name = group_name))
+        return samples_list
     
 class MultipleSamples:
     def sample_combinations(self):
