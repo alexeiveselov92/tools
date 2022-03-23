@@ -11,11 +11,6 @@ import datetime
 import re
 
 class clickhouse_tools:
-    '''
-    This class gives you the opportunity to work with Clickhouse DB through ready-made methods of the class, as well as create etl jobs with reference to the time column.
-    '''
-    elt_jobs_table_name = 'elt_jobs'
-    elt_jobs_progress_table_name = 'elt_progress'
     def __init__(self, user, password, host, database, port = 8123, native_port = 9000, untouchable_tables = []):
         '''
         untouchable_tables: list of names of tables, which can be read but not modified or dropped
@@ -29,15 +24,7 @@ class clickhouse_tools:
         self.untouchable_tables = untouchable_tables
         
         self.__pandahouse_connection_dict = {'host': f'http://{user}:{password}@{host}:{port}', 'database': database}
-        self.__native_connection_dict = {'host':host, 'user':user, 'password':password, 'port':native_port}
-    ###### common functions
-    # def select(self,q):
-    #     '''
-    #     this function will unload the data of your select query to a dataframe
-    #     '''
-    #     connection = self.__pandahouse_connection_dict
-    #     request = ph.read_clickhouse(query=q, connection=connection)
-    #     return request  
+        self.__native_connection_dict = {'host':host, 'user':user, 'password':password, 'port':native_port}  
     def select(self,q):
         '''
         this function will unload the data of your select query to a dataframe
@@ -237,7 +224,9 @@ class clickhouse_tools:
             return False
         else:
             return True
-    ###### elt functions
+class elt_tools(clickhouse_tools):
+    elt_jobs_table_name = 'elt_jobs'
+    elt_jobs_progress_table_name = 'elt_progress'
     # recreate main tables
     def elt_recreate_jobs_table(self, password, print_results = False):
         '''

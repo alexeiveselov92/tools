@@ -142,6 +142,9 @@ class BootstrapTwoSamples:
             patch.set_linewidth(1)
         plt.title('Distributions of statistic')
         plt.show()      
+class MultipleSamples:
+    def sample_combinations(self):
+        return Utils.get_all_combinations(self.Samples, 2)
 class Sample(BootstrapOneSample):
     name = 'sample'
     def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None, name:str = 'sample'):
@@ -341,6 +344,57 @@ class CompareTwoSamples(BootstrapTwoSamples):
         plt.show()
     def __repr__(self):
         return repr(self.df())
+class CompareMultipleSamples(MultipleSamples):
+    def __init__(self, Samples:list):
+        self.samples_count = len(Samples)
+        self.Samples = Samples
+        self.arrays = [sample.array for sample in Samples]
+        self.names = [sample.name for sample in Samples]
+    def df(self):
+        return pd.concat([sample.df().assign(group = sample.name) for sample in self.Samples])
+    def describe(self):
+        if np.max([sample.count_categories() for sample in self.Samples]) > 1:
+            return pd.concat([self.df().groupby(['category','group']).describe(), self.df().assign(category = 'all').groupby(['category','group']).describe()]).sort_index()
+        else:
+            return self.df().assign(category = 'all').groupby(['category','group']).describe()            
+    def anova_test(self, alpha = 0.05):
+        _, pvalue = f_oneway(*self.arrays)
+        return ExperimentComparisonResults(alpha, pvalue, None, None, None, None)
+    def tukey_hsd_test(self, alpha = 0.05):
+        return pairwise_tukeyhsd(endog=self.df()['value'], groups=self.df()['group'], alpha=0.05).summary()
+    def t_test(self, alpha = 0.05, test_type = 'absolute'):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).t_test(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
+    def t_test_cuped(self, alpha = 0.05, test_type = 'absolute'):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).t_test_cuped(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
+    def bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
+    def post_normed_bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
+        results = pd.DataFrame()
+        for Control, Test in self.sample_combinations():
+            compare_df = CompareTwoSamples(Control, Test).post_normed_bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
+            results = pd.concat([results, compare_df])
+        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
+    def hist(self, outliers_perc = [0,100]):
+        down_limit, up_limit = np.percentile(np.concatenate([sample.array for sample in self.Samples]), outliers_perc)
+        for sample in self.Samples:
+            sns.distplot(sample.array[np.logical_and(sample.array<=up_limit, sample.array>=down_limit)], label = sample.name)
+        plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
+        plt.legend()
+        plt.show()
+    def __repr__(self):
+        return repr(self.df())
 class CheckCriterion(Sample):
     def __init__(self, Sample:Sample):
         self.Sample = Sample
@@ -480,62 +534,18 @@ class Utils:
             values_before = None if values_before_column == None else sample_df[values_before_column]
             samples_list.append(Sample(array = sample_df[values_column], categories = categories, array_before = values_before, name = group_name))
         return samples_list
-    
-class MultipleSamples:
-    def sample_combinations(self):
-        return Utils.get_all_combinations(self.Samples, 2)
-class CompareMultipleSamples(MultipleSamples):
-    def __init__(self, Samples:list):
-        self.samples_count = len(Samples)
-        self.Samples = Samples
-        self.arrays = [sample.array for sample in Samples]
-        self.names = [sample.name for sample in Samples]
-    def df(self):
-        return pd.concat([sample.df().assign(group = sample.name) for sample in self.Samples])
-    def describe(self):
-        if np.max([sample.count_categories() for sample in self.Samples]) > 1:
-            return pd.concat([self.df().groupby(['category','group']).describe(), self.df().assign(category = 'all').groupby(['category','group']).describe()]).sort_index()
-        else:
-            return self.df().assign(category = 'all').groupby(['category','group']).describe()            
-    def anova_test(self, alpha = 0.05):
-        _, pvalue = f_oneway(*self.arrays)
-        return ExperimentComparisonResults(alpha, pvalue, None, None, None, None)
-    def tukey_hsd_test(self, alpha = 0.05):
-        return pairwise_tukeyhsd(endog=self.df()['value'], groups=self.df()['group'], alpha=0.05).summary()
-    def t_test(self, alpha = 0.05, test_type = 'absolute'):
-        results = pd.DataFrame()
-        for Control, Test in self.sample_combinations():
-            compare_df = CompareTwoSamples(Control, Test).t_test(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
-            results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
-    def t_test_cuped(self, alpha = 0.05, test_type = 'absolute'):
-        results = pd.DataFrame()
-        for Control, Test in self.sample_combinations():
-            compare_df = CompareTwoSamples(Control, Test).t_test_cuped(alpha = alpha, test_type = test_type).df().assign(group1 = Control.name, group2 = Test.name)
-            results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
-    def bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
-        results = pd.DataFrame()
-        for Control, Test in self.sample_combinations():
-            compare_df = CompareTwoSamples(Control, Test).bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
-            results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
-    def post_normed_bootstrap_test(self, alpha = 0.05, stat_func = np.mean, test_type = 'absolute', n_samples = 1000, stratify = False, chart = False):
-        results = pd.DataFrame()
-        for Control, Test in self.sample_combinations():
-            compare_df = CompareTwoSamples(Control, Test).post_normed_bootstrap_test(alpha = alpha, stat_func = stat_func, test_type = test_type, n_samples = n_samples, stratify = stratify, chart = chart).df().assign(group1 = Control.name, group2 = Test.name)
-            results = pd.concat([results, compare_df])
-        return results[['group1', 'group2', 'alpha', 'pvalue', 'effect', 'ci_length', 'left_bound', 'right_bound', 'reject']]
-    def hist(self, outliers_perc = [0,100]):
-        down_limit, up_limit = np.percentile(np.concatenate([sample.array for sample in self.Samples]), outliers_perc)
-        for sample in self.Samples:
-            sns.distplot(sample.array[np.logical_and(sample.array<=up_limit, sample.array>=down_limit)], label = sample.name)
-        plt.title('Distribution density; del outliers by percentiles {}'.format(outliers_perc))
-        plt.legend()
-        plt.show()
-    def __repr__(self):
-        return repr(self.df())
-    
+    def get_fractions(df, groups_column:str, count_column:str, nobs_column:str):
+        fractions_list = list() 
+        for group_name in df[groups_column].unique():
+            sample_df = df.query(f'{groups_column}==@group_name')
+            fractions_list.append(Fraction(count = sample_df[count_column].iloc[0], nobs = sample_df[nobs_column].iloc[0], name = group_name))
+        return fractions_list
+    def date_from_text(text, pattern = '%Y-%m-%d'):
+        '''
+        default pattern = '%Y-%m-%d'
+        '''
+        return datetime.datetime.strptime(text, pattern).date()
+
 class Fraction:
     name = 'fraction'
     def __init__(self, count: int, nobs: int, name: str = 'fraction'):
