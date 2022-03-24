@@ -96,7 +96,7 @@ class clickhouse_tools:
             INSERT INTO {self.__database}.{table_name}
             {q}
             ''')
-            if print_results == True: print(f'Select data have been successfully writed to {table_name}!')
+            if print_results == True: rint(f'Select data have been successfully writed to {table_name}!')
         else:
             print(f'Not done! Table {table_name} in untochable_tables list!')
     def insert_df_to_db(self, df, table_name, print_results = False):
