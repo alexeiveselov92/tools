@@ -9,7 +9,7 @@ from googleapiclient import discovery
 from oauth2client.service_account import ServiceAccountCredentials
 import matplotlib.colors as colors
 from gspread.utils import rowcol_to_a1, a1_to_rowcol
-class google_sheets_tools:
+class GoogleSheetsTools:
     '''
     path_to_credential - path to json key you received when creating a service account for google sheets
     '''
@@ -61,7 +61,7 @@ class google_sheets_tools:
         for email in list_of_emails:
             try:
                 spreadsheet.share(email, perm_type='user', role=role)
-                print('- Table "{}" have been shared successfully to {} with role {}!'.format(new_table_name, email, role))
+                print('- Table "{}" have been shared successfully to {} with role {}!'.format(link, email, role))
             except Exception as e: print(f'- Email "{email}" error - {e}')
     def get_permissions_by_url(self, table_url):
         spreadsheet = self.__gs.open_by_url(table_url)
