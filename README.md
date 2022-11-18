@@ -1,10 +1,15 @@
 # My tools
 ## my python modules
-|module|link to code|description|
-|---|---|---|
-|[clickhouse](https://github.com/alexeiveselov92/tools/blob/main/docs/clickhouse.md)| https://github.com/alexeiveselov92/tools/blob/main/clickhouse.py | Clickhouse administration functions|
-|[google_sheets](https://github.com/alexeiveselov92/tools/blob/main/docs/google_sheets.md)| https://github.com/alexeiveselov92/tools/blob/main/google_sheets.py | functions for Google sheets|
-|[statistics](https://github.com/alexeiveselov92/tools/blob/main/docs/statistics.md)| https://github.com/alexeiveselov92/tools/blob/main/statistics.py | statistical functions|
-|[other](https://github.com/alexeiveselov92/tools/blob/main/docs/other.md)| https://github.com/alexeiveselov92/tools/blob/main/other.py | other functions - slack api, ltv forecast or work with datetime|
+|module|description|
+|---|---|
+|[clickhouse_tools](https://github.com/alexeiveselov92/tools/blob/main/clickhouse_tools.py) | Clickhouse administration functions|
+|[google_sheets_tools](https://github.com/alexeiveselov92/tools/blob/main/google_sheets_tools.py) | functions for Google sheets|
+|[ab_tools](https://github.com/alexeiveselov92/tools/blob/main/ab_tools.py) | statistical functions|
+|[lifetimes_tools](https://github.com/alexeiveselov92/tools/blob/main/lifetimes_tools.py) | Lifetimes lib adaptation|
+|[etl_elt_tools](https://github.com/alexeiveselov92/tools/blob/main/etl_elt_tools.py) | Base parent classes for etl-elt processes|
+|[ltv_tools](https://github.com/alexeiveselov92/tools/blob/main/ltv_tools.py) | LTV forecast functions by approximating|
+|[mysql_tools](https://github.com/alexeiveselov92/tools/blob/main/mysql_tools.py) | MySQL administration functions|
+|[postgresql_tools](https://github.com/alexeiveselov92/tools/blob/main/postgresql_tools.py) | PostgreSQL administration functions|
+|[lifetimes_tools](https://github.com/alexeiveselov92/tools/blob/main/lifetimes_tools.py) | Lifetimes lib adaptation|
 
 
