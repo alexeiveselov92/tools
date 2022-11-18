@@ -14,7 +14,54 @@ from scipy.stats import f_oneway
 from itertools import combinations_with_replacement, permutations, combinations
 import itertools
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
+import scipy.stats as stats
 
+class GetSizeForSample:
+    def needed_size(self, alpha=0.05, power=0.8, diff_type='pct', diff=10):
+        ''' 
+        :param diff_type: может быть равен 'pct' или 'absolute' 
+        :param diff: если разница в процентах, то нужно число, напр. 5% или 10% 
+        '''
+        mean_1=self.mean()
+
+        if diff_type=='absolute':
+            mean_2=mean_1+diff
+        elif diff_type=='pct':
+            mean_2=mean_1*(1+diff/100)
+        else:
+            raise ValueError('diff_type is incorrect ("pct" or "absolute")')
+
+        std=self.std()
+        size=int(((2*std**2)*(stats.norm.ppf(1-alpha/2)+stats.norm.ppf(power))**2)/abs(mean_1-mean_2)**2)
+
+        results = pd.DataFrame()
+        results.loc[0, 'alpha'] = alpha
+        results.loc[0, 'power'] = power
+        results.loc[0, 'std'] = std
+        results.loc[0, 'mean'] = mean_1
+        results.loc[0, 'diff_type'] = diff_type
+        results.loc[0, 'diff'] = diff
+        results.loc[0, 'min_size'] = size
+
+        return results
+    def min_effect(self, alpha=0.05, power=0.8):
+
+        mean_1=self.mean()
+        std=self.std()
+        size=len(df)
+        diff=(((2*std**2)*(stats.norm.ppf(1-alpha/2)+stats.norm.ppf(power))**2)/size)**0.5
+        mean_2=mean_1+diff
+        effect=int((mean_2/mean_1-1)*100)
+
+        results = pd.DataFrame()
+        results.loc[0, 'alpha'] = alpha
+        results.loc[0, 'power'] = power
+        results.loc[0, 'std'] = std
+        results.loc[0, 'mean'] = mean_1
+        results.loc[0, 'mean_test'] = mean_2
+        results.loc[0, 'min_effect'] = str(effect)+'%'
+
+        return results    
 class BootstrapOneSample:
     def boot_samples(self, before_samples = None, n_samples = 1000, stratify = False, size = None):
         if size is None:
@@ -141,15 +188,135 @@ class BootstrapTwoSamples:
             patch.set_edgecolor('black') # or try 'black'
             patch.set_linewidth(1)
         plt.title('Distributions of statistic')
-        plt.show()      
+        plt.show()    
 class MultipleSamples:
     def sample_combinations(self):
         return Utils.get_all_combinations(self.Samples, 2)
-class Sample(BootstrapOneSample):
+class DeleteOutliersTwoSamples:
+    deleted_outliers = False
+    deleted_outliers_perc = None
+    deleted_outliers_data = pd.DataFrame()
+    deleted_outliers_period_type = None
+    def delete_outliers(self, outliers_perc = [0,100]):
+        if not self.deleted_outliers:
+            down_limit, up_limit = np.percentile(self.df()['value'], outliers_perc)
+            without_outliers_data = self.df().query('value >= @down_limit and value <= @up_limit')
+            self.deleted_outliers_data = self.df().query('value < @down_limit or value > @up_limit') # save deleted data
+            control_name = self.control_name
+            test_name = self.test_name
+
+            control_array = without_outliers_data.query('group==@control_name')['value']
+            control_array_before = without_outliers_data.query('group==@control_name')['value_before']
+            control_categories = without_outliers_data.query('group==@control_name')['category']
+            self.Control = Sample(control_array, control_categories, control_array_before, name = control_name)
+
+            test_array = without_outliers_data.query('group==@test_name')['value']
+            test_array_before = without_outliers_data.query('group==@test_name')['value_before']
+            test_categories = without_outliers_data.query('group==@test_name')['category']
+            self.Test = Sample(test_array, test_categories, test_array_before, name = test_name)
+
+            self.deleted_outliers = True
+            self.deleted_outliers_perc = outliers_perc
+        elif outliers_perc != self.deleted_outliers_perc:
+            down_limit, up_limit = np.percentile(pd.concat([self.df(), self.deleted_outliers_data])['value'], outliers_perc)
+            without_outliers_data = pd.concat([self.df(), self.deleted_outliers_data]).query('value >= @down_limit and value <= @up_limit')
+            self.deleted_outliers_data = pd.concat([self.df(), self.deleted_outliers_data]).query('value < @down_limit or value > @up_limit') # save deleted data
+            control_name = self.control_name
+            test_name = self.test_name
+
+            control_array = without_outliers_data.query('group==@control_name')['value']
+            control_array_before = without_outliers_data.query('group==@control_name')['value_before']
+            control_categories = without_outliers_data.query('group==@control_name')['category']
+            self.Control = Sample(control_array, control_categories, control_array_before, name = control_name)
+
+            test_array = without_outliers_data.query('group==@test_name')['value']
+            test_array_before = without_outliers_data.query('group==@test_name')['value_before']
+            test_categories = without_outliers_data.query('group==@test_name')['category']
+            self.Test = Sample(test_array, test_categories, test_array_before, name = test_name)
+
+            self.deleted_outliers = True
+            self.deleted_outliers_perc = outliers_perc
+        self.deleted_outliers_period_type = 'after'
+        return self
+    def delete_outliers_before_period(self, outliers_perc = [0,100]):
+        if not self.deleted_outliers:
+            down_limit, up_limit = np.percentile(self.df()['value_before'], outliers_perc)
+            without_outliers_data = self.df().query('value_before >= @down_limit and value_before <= @up_limit')
+            self.deleted_outliers_data = self.df().query('value_before < @down_limit or value_before > @up_limit') # save deleted data
+            control_name = self.control_name
+            test_name = self.test_name
+
+            control_array = without_outliers_data.query('group==@control_name')['value']
+            control_array_before = without_outliers_data.query('group==@control_name')['value_before']
+            control_categories = without_outliers_data.query('group==@control_name')['category']
+            self.Control = Sample(control_array, control_categories, control_array_before, name = control_name)
+
+            test_array = without_outliers_data.query('group==@test_name')['value']
+            test_array_before = without_outliers_data.query('group==@test_name')['value_before']
+            test_categories = without_outliers_data.query('group==@test_name')['category']
+            self.Test = Sample(test_array, test_categories, test_array_before, name = test_name)
+
+            self.deleted_outliers = True
+            self.deleted_outliers_perc = outliers_perc
+        elif outliers_perc != self.deleted_outliers_perc:
+            down_limit, up_limit = np.percentile(pd.concat([self.df(), self.deleted_outliers_data])['value'], outliers_perc)
+            without_outliers_data = pd.concat([self.df(), self.deleted_outliers_data]).query('value_before >= @down_limit and value_before <= @up_limit')
+            self.deleted_outliers_data = pd.concat([self.df(), self.deleted_outliers_data]).query('value_before < @down_limit or value_before > @up_limit') # save deleted data
+            control_name = self.control_name
+            test_name = self.test_name
+
+            control_array = without_outliers_data.query('group==@control_name')['value']
+            control_array_before = without_outliers_data.query('group==@control_name')['value_before']
+            control_categories = without_outliers_data.query('group==@control_name')['category']
+            self.Control = Sample(control_array, control_categories, control_array_before, name = control_name)
+
+            test_array = without_outliers_data.query('group==@test_name')['value']
+            test_array_before = without_outliers_data.query('group==@test_name')['value_before']
+            test_categories = without_outliers_data.query('group==@test_name')['category']
+            self.Test = Sample(test_array, test_categories, test_array_before, name = test_name)
+
+            self.deleted_outliers = True
+            self.deleted_outliers_perc = outliers_perc
+        self.deleted_outliers_period_type = 'before'
+        return self
+class DeleteOutliersMultipleSamples: # !!!надо доделать аналогично классу DeleteOutliersTwoSamples
+    deleted_outliers = False
+    def delete_outliers(self, outliers_perc = [0,100]):
+        if self.deleted_outliers == False:
+            down_limit, up_limit = np.percentile(self.df()['value'], outliers_perc)
+            without_outliers_data = self.df().query('value >= @down_limit and value <= @up_limit')
+            
+            for sample in self.Samples:
+                sample_name = self.sample.name
+
+                self.sample.array = without_outliers_data.query('group==@sample_name')['value']
+                self.sample.array_before = without_outliers_data.query('group==@sample_name')['value_before']
+                self.sample.categories = without_outliers_data.query('group==@sample_name')['category']
+
+            self.deleted_outliers = True
+        return self
+    def delete_outliers_before_period(self, outliers_perc = [0,100]):
+        if self.deleted_outliers == False:
+            down_limit, up_limit = np.percentile(self.df()['value_before'], outliers_perc)
+            without_outliers_data = self.df().query('value_before >= @down_limit and value_before <= @up_limit')
+            
+            for sample in self.Samples:
+                sample_name = self.sample.name
+
+                self.sample.array = without_outliers_data.query('group==@sample_name')['value']
+                self.sample.array_before = without_outliers_data.query('group==@sample_name')['value_before']
+                self.sample.categories = without_outliers_data.query('group==@sample_name')['category']
+
+            self.deleted_outliers = True
+        return self
+class Sample(BootstrapOneSample, GetSizeForSample):
     name = 'sample'
+    array: np.ndarray = np.array([])
+    array_before: np.ndarray = np.array([])
+    categories: pd.core.series.Series = pd.Series([], name = 'category')
     def __init__(self, array: np.ndarray, categories: pd.core.series.Series = None, array_before: np.ndarray = None, name:str = 'sample'):
         self.array = np.array(array)
-        self.series = pd.Series(array)
+        self.categories = pd.Series(array)
         self.array_before = np.array(array_before)
         Sample.name = name
         self.name = name
@@ -192,7 +359,7 @@ class Sample(BootstrapOneSample):
         plt.show()
     def __repr__(self):
         return repr(self.df())
-class CompareTwoSamples(BootstrapTwoSamples):
+class CompareTwoSamples(BootstrapTwoSamples, DeleteOutliersTwoSamples):
     def __init__(self, Control:Sample, Test:Sample):
         self.control = Control.array
         self.test = Test.array
@@ -545,8 +712,18 @@ class Utils:
         default pattern = '%Y-%m-%d'
         '''
         return datetime.datetime.strptime(text, pattern).date()
-
-class Fraction:
+class GetSizeForFraction:
+    def needed_size(self, alpha=0.05, diff_type='pct', diff=5):
+        ''' 
+        :param diff_type: может быть равен 'pct' или 'absolute' 
+        :param diff: если разница в процентах, то нужно число, напр. 5% или 10% 
+        '''
+        z = np.round(st.norm.interval(1 - alpha, loc=0, scale=1)[1], 2)
+        p = self.count / self.nobs
+        if diff_type=='pct': mde = diff / 100
+        if diff_type=='absolute': mde = diff / p
+        return z**2 * p * (1 - p) / mde**2
+class Fraction(GetSizeForFraction):
     name = 'fraction'
     def __init__(self, count: int, nobs: int, name: str = 'fraction'):
         self.count = count
