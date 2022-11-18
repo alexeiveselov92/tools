@@ -9,8 +9,7 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-from scipy import stats as st
-from scipy.optimize import curve_fit
+
 
 # post messages to slack
 def post_message_to_slack(
