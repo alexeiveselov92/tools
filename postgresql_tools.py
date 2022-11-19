@@ -9,7 +9,7 @@ import datetime
 
 import psycopg2
 from sqlalchemy import create_engine
-class postgresql_tools:
+class PostgreSQLTools:
     def __init__(self, db_name, db_user, db_password, db_host, db_port):
         try:
             self.connection = psycopg2.connect(
