@@ -164,6 +164,7 @@ class BaseELT:
     query_args = dict()
     destination_table_exists = None
     destination_table_name = None
+    destination_table_schema = None
     today = datetime.datetime.utcnow().date()
     yesterday = today - datetime.timedelta(days = 1)
     def __init__(self):
