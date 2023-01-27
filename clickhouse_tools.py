@@ -119,6 +119,20 @@ class ClickHouseTools:
             if print_results == True: print(f'Select data have been successfully writed to {database}{table_name}!')
         else:
             print(f'Not done! Table {table_name} in untochable_tables list!')
+    def insert_select_to_remote_db(self, q, remote_table_name, remote_database, remote_host, remote_native_port, remote_user, remote_password, timeout_ms = 5000, print_results = False):
+        '''
+        this function will insert data from your select expression to table in remote db
+        '''
+        if remote_table_name not in self.untouchable_tables:
+            self.execute(f'''
+            INSERT INTO FUNCTION
+            remote('{remote_host}:{remote_native_port}', '{remote_database}.{remote_table_name}', '{remote_user}', '{remote_password}')
+            {q}
+            SETTINGS connect_timeout_with_failover_ms = {timeout_ms}
+            ''')
+            if print_results == True: print(f'Select data have been successfully writed to {remote_database}{remote_table_name}!')
+        else:
+            print(f'Not done! Table {remote_table_name} in untochable_tables list!')
     def insert_df_to_db(self, df, table_name, database = None, print_results = False):
         '''
         this function will insert data from pandas dataframe to table in db
@@ -128,6 +142,19 @@ class ClickHouseTools:
             connection = self.__pandahouse_connection_dict.copy()
             connection['database'] = database
             affected_rows = ph.to_clickhouse(df, table=table_name, connection=connection, index = False)
+            if print_results == True: print(f'Dataframe data have been successfully writed to {table_name}!')
+            return affected_rows
+        else:
+            print(f'Not done! Table {table_name} in untochable_tables list!')
+    def insert_df_to_db_native(self, df, table_name, database = None, print_results = False):
+        '''
+        this function will insert data from pandas dataframe to table in db
+        '''
+        if not database: database = self.__database
+        if table_name not in self.untouchable_tables:
+            native_connection_dict = self.__native_connection_dict
+            client = Client(**native_connection_dict, settings = {'use_numpy':True})
+            affected_rows = client.insert_dataframe(query = f'INSERT INTO {database}.{table_name} VALUES', dataframe = df)
             if print_results == True: print(f'Dataframe data have been successfully writed to {table_name}!')
             return affected_rows
         else:
